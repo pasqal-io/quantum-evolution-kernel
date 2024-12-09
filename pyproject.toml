@@ -26,6 +26,16 @@ classifiers = [
 # always specify a version for each package
 # to maintain consistency
 dependencies = [
+  "jupyter",
+  "matplotlib",
+  "networkx",
+  "numpy",
+  "pulser==1.1.1",
+  "rdkit",
+  "scikit-learn",
+  "torch",
+  "torch_geometric",
+  "tqdm",
   #"pasqal-flow[all]==0.33.0",
 ]
 
@@ -57,7 +67,9 @@ dependencies = [
   "ipykernel",
   "pre-commit",
   "black",
+  "isort",
   "ruff",
+  "pydocstringformatter",
 ]
 
 [tool.hatch.envs.default.scripts]
