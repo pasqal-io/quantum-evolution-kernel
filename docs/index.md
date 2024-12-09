@@ -1,5 +1,4 @@
-# Quantum Evolution Kernel
-
+# "Quantum Evolution Kernel"
 ## Installation
 Installation guidelines
 

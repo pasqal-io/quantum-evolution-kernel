@@ -1,0 +1,79 @@
+site_name: Quantum Evolution Kernel
+repo_url: "https://gitlab.pasqal.com/pqs/quantum-evolution-kernel"
+repo_name: "Quantum Evolution Kernel"
+
+nav:
+  - Overview: index.md
+  - Sample page: sample_page.md
+
+theme:
+  name: material
+  features:
+  - content.code.annotate
+  - content.action.view
+  - content.action.edit
+  - navigation.tabs
+  - navigation.indexes
+  - navigation.sections
+  - content.code.copy
+
+  palette:
+  - media: "(prefers-color-scheme: light)"
+    scheme: default
+    primary: light green
+    accent: purple
+    toggle:
+      icon: material/weather-sunny
+      name: Switch to dark mode
+  - media: "(prefers-color-scheme: dark)"
+    scheme: slate
+    primary: black
+    accent: light green
+    toggle:
+      icon: material/weather-night
+      name: Switch to light mode
+
+markdown_extensions:
+- admonition  # for notes
+- pymdownx.arithmatex: # for mathjax
+    generic: true
+- pymdownx.highlight:
+    anchor_linenums: true
+- pymdownx.inlinehilite
+- pymdownx.snippets
+- pymdownx.superfences
+
+plugins:
+- search
+- section-index
+- markdown-exec
+- mkdocstrings:
+    default_handler: python
+    handlers:
+      python:
+        selection:
+          filters:
+            - "!^_"  # exlude all members starting with _
+            - "^__init__$"  # but always include __init__ modules and methods
+        options:
+          show_root_toc_entry: false
+          heading_level: 3
+          merge_init_into_class: true
+          docstring_section_style: spacy
+
+watch:
+  - qek
+
+extra:
+ version:
+   provider: mike
+
+# To get nice tabs
+extra_css:
+- css/mkdocstrings.css
+
+# For mathjax
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
