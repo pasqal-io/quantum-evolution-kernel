@@ -73,9 +73,7 @@ def is_disk_graph(G: pyg_data.Data, radius: float) -> bool:
     else:
         raise AttributeError("Graph object does not have a pos attribute")
 
-    nx_graph = pyg_utils.to_networkx(
-        G, to_undirected=True
-    )  # Molecule are unidrected Graphs
+    nx_graph = pyg_utils.to_networkx(G, to_undirected=True)  # Molecule are unidrected Graphs
 
     # Check if the graph is connected
     if not nx.is_connected(nx_graph):

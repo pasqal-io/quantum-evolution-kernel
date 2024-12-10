@@ -50,9 +50,7 @@ class QekKernel:
         )  # Because the divergence is the square root of the distance
         return float(np.exp(-self.mu * js))
 
-    def create_train_kernel_matrix(
-        self, train_dataset: Sequence[ProcessedData]
-    ) -> np.ndarray:
+    def create_train_kernel_matrix(self, train_dataset: Sequence[ProcessedData]) -> np.ndarray:
         """Compute a kernel matrix for a given training dataset.
 
         This method computes a symmetric N x N kernel matrix from the Jensen-Shannon
@@ -116,9 +114,7 @@ def count_occupation_from_bitstring(bitstring: str) -> int:
     return sum(int(bit) for bit in bitstring)
 
 
-def dist_excitation_and_vec(
-    count_bitstring: dict[str, int], size_max: int
-) -> np.ndarray:
+def dist_excitation_and_vec(count_bitstring: dict[str, int], size_max: int) -> np.ndarray:
     """Calculates the distribution of excitation energies from a dictionary of
     bitstrings to their respective counts, and then creates a NumPy vector with the
     results.

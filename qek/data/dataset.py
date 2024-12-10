@@ -45,6 +45,5 @@ class ProcessedData:
 
 def _convert_np_int64_to_int(data: dict[str, np.int64]) -> dict[str, int]:
     return {
-        key: (int(value) if isinstance(value, np.integer) else value)
-        for key, value in data.items()
+        key: (int(value) if isinstance(value, np.integer) else value) for key, value in data.items()
     }

@@ -67,15 +67,11 @@ def split_train_test(
         generator = torch.Generator().manual_seed(seed)
     else:
         generator = torch.Generator()
-    train, val = torch_data.random_split(
-        dataset=dataset, lengths=lengths, generator=generator
-    )
+    train, val = torch_data.random_split(dataset=dataset, lengths=lengths, generator=generator)
     return train, val
 
 
-def check_compatibility_graph_device(
-    graph: pyg_data.Data, device: pl.devices.Device
-) -> bool:
+def check_compatibility_graph_device(graph: pyg_data.Data, device: pl.devices.Device) -> bool:
     """Given the characteristics of a graph, return True if the graph can be embedded in
     the device, False if not.
 

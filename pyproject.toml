@@ -8,10 +8,11 @@ description = "A new quantum library."
 readme = "README.md"
 version = "0.1.0"
 requires-python = ">=3.10,<3.13"
-license = {text = "Proprietary"}
+license = { text = "Apache 2.0" }
 keywords = ["quantum"]
 authors = [
   { name = "Shaheen Acheche", email = "shaheen.acheche@pasqal.com" },
+  { name = "Roland Guichard", email = "roland.guichard@pasqal.com" }
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -47,15 +48,10 @@ allow-ambiguous-features = true
 [project.optional-dependencies]
 extras = []
 
-# uncomment to enable installing libraries from the PASQAL private PyPi repository
-# use a GitLab personal access token with registry permissions enable as credentials
-[tool.hatch.envs.default.env-vars]
-PIP_EXTRA_INDEX_URL = "https://{env:PYPI_USERNAME}:{env:PYPI_PASSWORD}@gitlab.pasqal.com/api/v4/projects/190/packages/pypi/simple"
-
 [project.urls]
 #Documentation = "https://pqs.pages.pasqal.com/quantum-evolution-kernel/"
-Issues = "https://gitlab.pasqal.com/pqs/quantum-evolution-kernel/-/issues"
-Source = "https://gitlab.pasqal.com/pqs/quantum-evolution-kernel"
+Issues = "https://github.com/pasqal-io/quantum-evolution-kernel/issues"
+Source = "https://github.com/pasqal-io/quantum-evolution-kernel"
 
 [tool.hatch.envs.default]
 features = ["extras"]
@@ -73,11 +69,11 @@ dependencies = [
 ]
 
 [tool.hatch.envs.default.scripts]
-test = "pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=flow --cov=tests --ignore=./tests/test_examples.py --ignore=./tests/test_notebooks.py {args}"
+test = "pytest -n auto --cov-report=term-missing --cov-config=pyproject.toml --cov=qek --cov=tests --ignore=./tests/test_examples.py --ignore=./tests/test_notebooks.py {args}"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = """-vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=template_python --cov=tests"""
+addopts = """-vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=qek --cov=tests"""
 xfail_strict = true
 filterwarnings = [
   "ignore:Call to deprecated create function FieldDescriptor",
@@ -106,8 +102,17 @@ build = "mkdocs build --clean --strict {args}"
 serve = "mkdocs serve --dev-addr localhost:8000"
 test = "mkdocs build --clean --strict"
 
-[[tool.hatch.envs.test.matrix]]
+[tool.hatch.envs.test.matrix]
 python = ["310", "311", "312"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.gitignore",
+    "/.pre-commit-config.yml",
+    "/tests",
+    "/docs",
+    "/examples",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["qek"]
@@ -141,6 +146,23 @@ max-complexity = 15
 
 [tool.ruff.flake8-quotes]
 docstring-quotes = "double"
+
+[tool.black]
+line-length = 100
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
 
 [tool.mypy]
 python_version = "3.11"
