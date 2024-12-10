@@ -37,7 +37,6 @@ dependencies = [
   "torch",
   "torch_geometric",
   "tqdm",
-  #"pasqal-flow[all]==0.33.0",
 ]
 
 [tool.hatch.metadata]
