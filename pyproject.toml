@@ -102,7 +102,7 @@ build = "mkdocs build --clean --strict {args}"
 serve = "mkdocs serve --dev-addr localhost:8000"
 test = "mkdocs build --clean --strict"
 
-[tool.hatch.envs.test.matrix]
+[[tool.hatch.envs.test.matrix]]
 python = ["310", "311", "312"]
 
 [tool.hatch.build.targets.sdist]
