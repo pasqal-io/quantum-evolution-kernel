@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 
 import networkx as nx
@@ -8,11 +10,10 @@ import torch
 import torch.utils.data as torch_data
 import torch_geometric.data as pyg_data
 import torch_geometric.utils as pyg_utils
-from rdkit.Chem import AllChem
-
 from qek_os.data_io.conversion_data import PTCFM_EDGES_MAP, PTCFM_NODES_MAP
 from qek_os.data_io.dataset import ProcessedData
 from qek_os.utils import graph_to_mol
+from rdkit.Chem import AllChem
 
 
 def add_graph_coord(
@@ -66,11 +67,15 @@ def split_train_test(
         generator = torch.Generator().manual_seed(seed)
     else:
         generator = torch.Generator()
-    train, val = torch_data.random_split(dataset=dataset, lengths=lengths, generator=generator)
+    train, val = torch_data.random_split(
+        dataset=dataset, lengths=lengths, generator=generator
+    )
     return train, val
 
 
-def check_compatibility_graph_device(graph: pyg_data.Data, device: pl.devices.Device) -> bool:
+def check_compatibility_graph_device(
+    graph: pyg_data.Data, device: pl.devices.Device
+) -> bool:
     """Given the characteristics of a graph, return True if the graph can be embedded in
     the device, False if not.
 
@@ -114,10 +119,11 @@ def _return_min_dist(graph: pyg_data.Data) -> float:
     compl_graph = nx.complement(nx_graph)
     for start, end in compl_graph.edges():
         distances.append(np.linalg.norm(graph_pos[start] - graph_pos[end], ord=2))
-    return min(distances)
+    min_dist: float = min(distances)
+    return min_dist
 
 
-def save_dataset(dataset: list[ProcessedData], file_path: str):
+def save_dataset(dataset: list[ProcessedData], file_path: str) -> None:
     """Saves a dataset to a JSON file.
 
     Args:

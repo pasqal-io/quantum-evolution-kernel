@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import collections
 from collections.abc import Sequence
 
 import numpy as np
-from scipy.spatial.distance import jensenshannon
-
 from qek_os.data_io.dataset import ProcessedData
+from scipy.spatial.distance import jensenshannon
 
 
 class QekKernel:
@@ -12,7 +13,7 @@ class QekKernel:
         self.mu = mu
 
     def __call__(
-        self, graph_1: ProcessedData, graph_2: ProcessedData, size_max: float = 100
+        self, graph_1: ProcessedData, graph_2: ProcessedData, size_max: int = 100
     ) -> float:
         """Compute the similarity between two graphs using Jensen-Shannon divergence.
 
@@ -47,9 +48,11 @@ class QekKernel:
         js = (
             jensenshannon(p=dist_graph_1, q=dist_graph_2) ** 2
         )  # Because the divergence is the square root of the distance
-        return np.exp(-self.mu * js)
+        return float(np.exp(-self.mu * js))
 
-    def create_train_kernel_matrix(self, train_dataset: Sequence[ProcessedData]) -> np.ndarray:
+    def create_train_kernel_matrix(
+        self, train_dataset: Sequence[ProcessedData]
+    ) -> np.ndarray:
         """Compute a kernel matrix for a given training dataset.
 
         This method computes a symmetric N x N kernel matrix from the Jensen-Shannon
@@ -71,23 +74,26 @@ class QekKernel:
         return kernel_mat
 
     def create_test_kernel_matrix(
-        self, test_dataset: Sequence[ProcessedData], train_dataset: Sequence[ProcessedData]
+        self,
+        test_dataset: Sequence[ProcessedData],
+        train_dataset: Sequence[ProcessedData],
     ) -> np.ndarray:
         """Compute a kernel matrix for a given testing dataset and training set.
 
         This method computes an N x M kernel matrix from the Jensen-Shannon
-        divergences between all pairs of graphs in the input testing dataset and the training dataset.
+        divergences between all pairs of graphs in the input testing dataset
+        and the training dataset.
         The resulting matrix can be used as a similarity metric for machine learning algorithms,
         particularly when evaluating the performance on the test dataset using a trained model.
         Args:
-            test_dataset (Sequence[ProcessedData]): A list of ProcessedData objects representing the
-            testing dataset.
-            train_dataset (Sequence[ProcessedData]): A list of ProcessedData objects representing the
-            training set.
+            test_dataset (Sequence[ProcessedData]): A list of ProcessedData
+            objects representing the testing dataset.
+            train_dataset (Sequence[ProcessedData]): A list of ProcessedData
+            objects representing the training set.
         Returns:
             np.ndarray: An M x N matrix where the entry at row i and column j represents
-            the similarity between the graph in position i of the test dataset and the graph in position j
-            of the training set.
+            the similarity between the graph in position i of the test dataset
+            and the graph in position j of the training set.
         """
         N_train = len(train_dataset)
         N_test = len(test_dataset)
@@ -110,7 +116,9 @@ def count_occupation_from_bitstring(bitstring: str) -> int:
     return sum(int(bit) for bit in bitstring)
 
 
-def dist_excitation_and_vec(count_bitstring: dict[str, int], size_max: int) -> np.ndarray:
+def dist_excitation_and_vec(
+    count_bitstring: dict[str, int], size_max: int
+) -> np.ndarray:
     """Calculates the distribution of excitation energies from a dictionary of
     bitstrings to their respective counts, and then creates a NumPy vector with the
     results.
@@ -124,7 +132,7 @@ def dist_excitation_and_vec(count_bitstring: dict[str, int], size_max: int) -> n
         np.ndarray: A NumPy array where keys are the number of '1' bits
             in each binary string and values are the normalized counts.
     """
-    count_occ = collections.defaultdict(float)
+    count_occ: dict = collections.defaultdict(float)
     total = 0.0
     for k, v in count_bitstring.items():
         nbr_occ = count_occupation_from_bitstring(k)
@@ -133,7 +141,7 @@ def dist_excitation_and_vec(count_bitstring: dict[str, int], size_max: int) -> n
 
     numpy_vec = np.zeros(size_max)
     for k, v in count_occ.items():
-        if k <= size_max:
+        if int(k) <= size_max:
             numpy_vec[k] = v / total
 
     return numpy_vec

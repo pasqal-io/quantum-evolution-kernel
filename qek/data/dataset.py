@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass
 
@@ -18,10 +20,10 @@ class ProcessedData:
     state_dict: dict[str, int]
     target: int
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.state_dict = _convert_np_int64_to_int(data=self.state_dict)
 
-    def save_to_file(self, file_path: str):
+    def save_to_file(self, file_path: str) -> None:
         with open(file_path, "w") as file:
             tmp_dict = {
                 "sequence": self.sequence.to_abstract_repr(),
