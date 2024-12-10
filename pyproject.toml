@@ -15,7 +15,7 @@ authors = [
   { name = "Roland Guichard", email = "roland.guichard@pasqal.com" }
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 4 - Alpha",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
