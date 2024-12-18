@@ -8,7 +8,7 @@ description = "A new quantum library."
 readme = "README.md"
 version = "0.1.0"
 requires-python = ">=3.10,<3.13"
-license = { text = "Proprietary" }
+license = { text = "Proprietary" } # temporary
 keywords = ["quantum"]
 authors = [
   { name = "Shaheen Acheche", email = "shaheen.acheche@pasqal.com" },
