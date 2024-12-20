@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -10,20 +11,19 @@ import torch
 import torch.utils.data as torch_data
 import torch_geometric.data as pyg_data
 import torch_geometric.utils as pyg_utils
-from qek_os.data_io.conversion_data import PTCFM_EDGES_MAP, PTCFM_NODES_MAP
-from qek_os.data_io.dataset import ProcessedData
-from qek_os.utils import graph_to_mol
+from qek.data.conversion_data import PTCFM_EDGES_MAP, PTCFM_NODES_MAP
+from qek.data.dataset import ProcessedData
+from qek.utils import graph_to_mol
 from rdkit.Chem import AllChem
 
 
 def add_graph_coord(
     data: pyg_data.Data,
     blockade_radius: float,
-    node_mapping: dict[int, str] = PTCFM_NODES_MAP,
-    edge_mapping: dict[int, Chem.BondType] = PTCFM_EDGES_MAP,
+    node_mapping: dict[int, str],
+    edge_mapping: dict[int, Any],
 ) -> pyg_data.Data:
-    """Converts a pyg (molecular) data object into a matrix of coordinates and add it to
-    the data object."""
+    """Augment the PyTorch Geometric data object with a matrix of coordinates """
     graph = data.clone()
     nx_graph = pyg_utils.to_networkx(
         data=data,
