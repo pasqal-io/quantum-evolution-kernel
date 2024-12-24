@@ -28,7 +28,7 @@ def graph_to_mol(
     atom_index = {}
     for n, d in graph.nodes(data="x"):
         d = np.asarray(d)
-        idx_d = inverse_one_hot(d, dim=0)[0]
+        idx_d: int = inverse_one_hot(d, dim=0)[0]
         atom_index[n] = mw.AddAtom(Chem.Atom(node_mapping[idx_d]))
     for a, b, d in graph.edges(data="edge_attr"):
         start = atom_index[a]
@@ -43,8 +43,9 @@ def graph_to_mol(
 
 
 def inverse_one_hot(array: npt.ArrayLike, dim: int) -> np.ndarray:
-    """Inverts a one-hot encoded tensor along a specified dimension and returns the
-    indices where the value is 1.
+    """
+    Inverts a one-hot encoded tensor along a specified dimension and
+    returns the indices where the value is 1.
 
     Parameters:
     - array (np.ndarray): The one-hot encoded array.

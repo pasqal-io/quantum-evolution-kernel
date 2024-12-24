@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -11,22 +10,44 @@ import torch
 import torch.utils.data as torch_data
 import torch_geometric.data as pyg_data
 import torch_geometric.utils as pyg_utils
+from rdkit.Chem import AllChem
+
 from qek.data.conversion_data import PTCFM_EDGES_MAP, PTCFM_NODES_MAP
 from qek.data.dataset import ProcessedData
 from qek.utils import graph_to_mol
-from rdkit.Chem import AllChem
 
 
 def add_graph_coord(
-    data: pyg_data.Data,
+    graph: pyg_data.Data,
     blockade_radius: float,
-    node_mapping: dict[int, str],
-    edge_mapping: dict[int, Any],
+    node_mapping: dict[int, str] = PTCFM_NODES_MAP,
+    edge_mapping: dict[int, Chem.BondType] = PTCFM_EDGES_MAP,
 ) -> pyg_data.Data:
-    """Augment the PyTorch Geometric data object with a matrix of coordinates """
-    graph = data.clone()
+    """
+    Take a molecule described as a graph with only nodes and edges,
+    add 2D coordinates.
+
+    This function:
+    1. Converts the graph into a molecule (using `node_mapping` and
+        `edge_mapping` to determine the types of atoms and bonds).
+    2. Uses the molecule to determine coordinates.
+    3. Injects the coordinates into the graph.
+
+    :param pyg_data.Data graph:  A homogeneous graph, in PyTorch Geometric
+        format. Unchanged.
+    :param float blockade_radius: The radius of the Rydberg Blockade. Two
+        connected nodes should be at a distance < blockade_radius, while
+        two disconnected nodes should be at a distance > blockade_radius.
+    :param node_mapping: A mapping of node labels from numbers to strings,
+        e.g. `5 => "Cl"`. Used when building molecules.
+    :param edge_mapping: A mapping of edge labels from number to chemical
+        bond types, e.g. `2 => DOUBLE`. Used when building molecules.
+
+    :return A clone of `graph` augmented with 2D coordinates.
+    """
+    graph = graph.clone()
     nx_graph = pyg_utils.to_networkx(
-        data=data,
+        data=graph,
         node_attrs=["x"],
         edge_attrs=["edge_attr"],
         to_undirected=True,

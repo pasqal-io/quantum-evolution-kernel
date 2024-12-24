@@ -27,7 +27,6 @@ classifiers = [
 # always specify a version for each package
 # to maintain consistency
 dependencies = [
-  "jupyter",
   "matplotlib",
   "networkx",
   "numpy",
@@ -43,9 +42,10 @@ dependencies = [
 allow-direct-references = true
 allow-ambiguous-features = true
 
-# add one or more extras in the dependencies
 [project.optional-dependencies]
-extras = []
+extras = [
+  "jupyter",
+]
 
 [project.urls]
 #Documentation = "https://pqs.pages.pasqal.com/quantum-evolution-kernel/"
