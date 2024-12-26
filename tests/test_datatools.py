@@ -22,6 +22,5 @@ def test_add_graph_coord() -> None:
     #
     # As we know that the first graph can be, we'll use it to test against
     # regressions.
-    augmented_graph = add_graph_coord(graph=original_ptcfm_data[0],
-                                      blockade_radius=RADIUS)
+    augmented_graph = add_graph_coord(graph=original_ptcfm_data[0], blockade_radius=RADIUS)
     assert is_disk_graph(augmented_graph, RADIUS + EPS)

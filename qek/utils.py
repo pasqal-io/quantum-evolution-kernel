@@ -82,7 +82,6 @@ def is_disk_graph(graph: pyg_data.Data, radius: float) -> bool:
         raise AttributeError("Graph object does not have a pos attribute")
 
     if graph.num_nodes == 0 or graph.num_nodes is None:
-        print("is_disk_graph: empty graph")
         return False
 
     # Molecule are unidrected Graphs.
@@ -90,20 +89,17 @@ def is_disk_graph(graph: pyg_data.Data, radius: float) -> bool:
 
     # Check if the graph is connected.
     if len(nx_graph) == 0 or not nx.is_connected(nx_graph):
-        print("is_disk_graph: graph is not connected")
         return False
 
     # Check the distances between all pairs of nodes.
     for u, v in nx.non_edges(nx_graph):
         distance = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
         if distance <= radius:
-            print("is_disk_graph: nodes %s and %s are too close: %s" % (u, v, distance))
             return False
 
     for u, v in nx_graph.edges():
         distance = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
         if distance > radius:
-            print("is_disk_graph: nodes %s and %s are too far: %s" % (u, v, distance))
             return False
 
     return True

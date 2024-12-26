@@ -22,11 +22,14 @@ def test_is_disk_graph() -> None:
     # is not connected.
     graph_disconnected_close = Graph(
         x=torch.tensor([[0], [1], [2]], dtype=torch.float),
-        edge_index=torch.tensor([
-            [0, 1],  # edge 0 -> 1
-            [1, 0],  # edge 1 -> 0
-        ], dtype=torch.int),
-        pos=torch.tensor([[0], [1], [2]], dtype=torch.float)
+        edge_index=torch.tensor(
+            [
+                [0, 1],  # edge 0 -> 1
+                [1, 0],  # edge 1 -> 0
+            ],
+            dtype=torch.int,
+        ),
+        pos=torch.tensor([[0], [1], [2]], dtype=torch.float),
     )
     assert not is_disk_graph(graph_disconnected_close, radius=10.0)
 
@@ -34,17 +37,28 @@ def test_is_disk_graph() -> None:
     # are connected.
     graph_connected_close = Graph(
         x=torch.tensor([[0], [1], [2]], dtype=torch.float),
-        edge_index=torch.tensor([[
-            0, 1,  # edge 0 -> 1
-            1, 2,  # edge 1 -> 2
-            0, 2,  # edge 0 -> 2
-        ], [
-            1, 0,  # edge 1 -> 0
-            2, 1,  # edge 2 -> 1
-            2, 0,  # edge 2 -> 0
-            ]
-        ], dtype=torch.int),
-        pos=torch.tensor([[0], [1], [2]], dtype=torch.float)
+        edge_index=torch.tensor(
+            [
+                [
+                    0,
+                    1,  # edge 0 -> 1
+                    1,
+                    2,  # edge 1 -> 2
+                    0,
+                    2,  # edge 0 -> 2
+                ],
+                [
+                    1,
+                    0,  # edge 1 -> 0
+                    2,
+                    1,  # edge 2 -> 1
+                    2,
+                    0,  # edge 2 -> 0
+                ],
+            ],
+            dtype=torch.int,
+        ),
+        pos=torch.tensor([[0], [1], [2]], dtype=torch.float),
     )
     assert is_disk_graph(graph_connected_close, radius=10.0)
 
@@ -52,17 +66,28 @@ def test_is_disk_graph() -> None:
     # are connected.
     graph_connected_far = Graph(
         x=torch.tensor([[0], [1], [2]], dtype=torch.float),
-        edge_index=torch.tensor([[
-            0, 1,  # edge 0 -> 1
-            1, 2,  # edge 1 -> 2
-            0, 2,  # edge 0 -> 2
-        ], [
-            1, 0,  # edge 1 -> 0
-            2, 1,  # edge 2 -> 1
-            2, 0,  # edge 2 -> 0
-            ]
-        ], dtype=torch.int),
-        pos=torch.tensor([[0], [1], [12]], dtype=torch.float)
+        edge_index=torch.tensor(
+            [
+                [
+                    0,
+                    1,  # edge 0 -> 1
+                    1,
+                    2,  # edge 1 -> 2
+                    0,
+                    2,  # edge 0 -> 2
+                ],
+                [
+                    1,
+                    0,  # edge 1 -> 0
+                    2,
+                    1,  # edge 2 -> 1
+                    2,
+                    0,  # edge 2 -> 0
+                ],
+            ],
+            dtype=torch.int,
+        ),
+        pos=torch.tensor([[0], [1], [12]], dtype=torch.float),
     )
     assert not is_disk_graph(graph_connected_far, radius=10.0)
 
@@ -70,14 +95,23 @@ def test_is_disk_graph() -> None:
     # of nodes is not connected.
     graph_partially_connected_close = Graph(
         x=torch.tensor([[0], [1], [2]], dtype=torch.float),
-        edge_index=torch.tensor([[
-            0, 1,  # edge 0 -> 1
-            1, 2,  # edge 1 -> 2
-        ], [
-            1, 0,  # edge 1 -> 0
-            2, 1,  # edge 2 -> 1
-            ]
-        ], dtype=torch.int),
-        pos=torch.tensor([[0], [1], [2]], dtype=torch.float)
+        edge_index=torch.tensor(
+            [
+                [
+                    0,
+                    1,  # edge 0 -> 1
+                    1,
+                    2,  # edge 1 -> 2
+                ],
+                [
+                    1,
+                    0,  # edge 1 -> 0
+                    2,
+                    1,  # edge 2 -> 1
+                ],
+            ],
+            dtype=torch.int,
+        ),
+        pos=torch.tensor([[0], [1], [2]], dtype=torch.float),
     )
     assert not is_disk_graph(graph_partially_connected_close, radius=10.0)
