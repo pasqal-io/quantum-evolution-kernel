@@ -58,37 +58,52 @@ def inverse_one_hot(array: npt.ArrayLike, dim: int) -> np.ndarray:
     return np.nonzero(tmp_array == 1.0)[dim]
 
 
-def is_disk_graph(G: pyg_data.Data, radius: float) -> bool:
-    """Check if the given graph G is a disk graph with the specified radius.
+def is_disk_graph(graph: pyg_data.Data, radius: float) -> bool:
+    """
+    Check if `graph` is a disk graph with the specified radius, i.e.
+    `graph` is a connected graph and, for every pair of nodes `A` and `B`
+    within `graph`, there exists there exists an edge between `A` and `B`
+    if and only if the positions of `A` and `B` within `graph` are such
+    that `|AB| <= radius`.
 
-    Parameters:
-    G (pyg_data.Data): The input graph. Should have the `pos` attribute
-    radius (float): The radius of the disks.
+    :param pyg_data.Data graph:  A homogeneous, undirected, graph, in PyTorch
+        Geometric format. This graph MUST have an attribute `pos`, as provided
+        e.g. by `datatools.add_graph_coord`.
+    :param float radius: The maximal distance between two nodes of `graph`
+        connected be an edge.
 
-    Returns:
-    bool: True if the graph is a disk graph with the specified radius, False otherwise.
+    :return bool `True` if the graph is a disk graph with the specified radius,
+        `False` otherwise.
     """
 
-    if hasattr(G, "pos"):
-        pos = G.pos
+    if hasattr(graph, "pos"):
+        pos = graph.pos
     else:
         raise AttributeError("Graph object does not have a pos attribute")
 
-    nx_graph = pyg_utils.to_networkx(G, to_undirected=True)  # Molecule are unidrected Graphs
-
-    # Check if the graph is connected
-    if not nx.is_connected(nx_graph):
+    if graph.num_nodes == 0 or graph.num_nodes is None:
+        print("is_disk_graph: empty graph")
         return False
 
-    # Check the distances between all pairs of nodes
+    # Molecule are unidrected Graphs.
+    nx_graph = pyg_utils.to_networkx(graph, to_undirected=True)
+
+    # Check if the graph is connected.
+    if len(nx_graph) == 0 or not nx.is_connected(nx_graph):
+        print("is_disk_graph: graph is not connected")
+        return False
+
+    # Check the distances between all pairs of nodes.
     for u, v in nx.non_edges(nx_graph):
         distance = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
         if distance <= radius:
+            print("is_disk_graph: nodes %s and %s are too close: %s" % (u, v, distance))
             return False
 
     for u, v in nx_graph.edges():
         distance = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
         if distance > radius:
+            print("is_disk_graph: nodes %s and %s are too far: %s" % (u, v, distance))
             return False
 
     return True
