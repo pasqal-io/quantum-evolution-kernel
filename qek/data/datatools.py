@@ -10,11 +10,10 @@ import torch
 import torch.utils.data as torch_data
 import torch_geometric.data as pyg_data
 import torch_geometric.utils as pyg_utils
-from rdkit.Chem import AllChem
-
-from qek.data.conversion_data import PTCFM_EDGES_MAP, PTCFM_NODES_MAP
-from qek.data.dataset import ProcessedData
+from qek.data_io.conversion_data import PTCFM_EDGES_MAP, PTCFM_NODES_MAP
+from qek.data_io.dataset import ProcessedData
 from qek.utils import graph_to_mol
+from rdkit.Chem import AllChem
 
 
 def add_graph_coord(
