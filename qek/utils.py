@@ -66,25 +66,27 @@ def is_disk_graph(graph: pyg_data.Data, radius: float) -> bool:
     if and only if the positions of `A` and `B` within `graph` are such
     that `|AB| <= radius`.
 
-    :param pyg_data.Data graph:  A homogeneous, undirected, graph, in PyTorch
-        Geometric format. This graph MUST have an attribute `pos`, as provided
-        e.g. by `datatools.add_graph_coord`.
-    :param float radius: The maximal distance between two nodes of `graph`
-        connected be an edge.
+    Args:
+        graph:  A homogeneous, undirected, graph, in PyTorch
+            Geometric format. This graph MUST have an attribute `pos`, as
+            provided e.g. by `datatools.add_graph_coord`.
+        radius: The maximal distance between two nodes of `graph`
+            connected be an edge.
 
-    :return bool `True` if the graph is a disk graph with the specified radius,
+    Returns:
+        `True` if the graph is a disk graph with the specified radius,
         `False` otherwise.
     """
 
     if hasattr(graph, "pos"):
         pos = graph.pos
     else:
-        raise AttributeError("Graph object does not have a pos attribute")
+        raise AttributeError("Graph object does not have a 'pos' attribute")
 
     if graph.num_nodes == 0 or graph.num_nodes is None:
         return False
 
-    # Molecule are unidrected Graphs.
+    # Molecule are undirected Graphs.
     nx_graph = pyg_utils.to_networkx(graph, to_undirected=True)
 
     # Check if the graph is connected.

@@ -33,17 +33,20 @@ def add_graph_coord(
     2. Uses the molecule to determine coordinates.
     3. Injects the coordinates into the graph.
 
-    :param pyg_data.Data graph:  A homogeneous graph, in PyTorch Geometric
-        format. Unchanged.
-    :param float blockade_radius: The radius of the Rydberg Blockade. Two
-        connected nodes should be at a distance < blockade_radius, while
-        two disconnected nodes should be at a distance > blockade_radius.
-    :param node_mapping: A mapping of node labels from numbers to strings,
-        e.g. `5 => "Cl"`. Used when building molecules.
-    :param edge_mapping: A mapping of edge labels from number to chemical
-        bond types, e.g. `2 => DOUBLE`. Used when building molecules.
+    Args:
+        graph:  A homogeneous graph, in PyTorch Geometric format. Unchanged.
+        blockade_radius: The radius of the Rydberg Blockade. Two
+            connected nodes should be at a distance < blockade_radius, while
+            two disconnected nodes should be at a distance > blockade_radius.
+        node_mapping: A mapping of node labels from numbers to strings,
+            e.g. `5 => "Cl"`. Used when building molecules, e.g. to compute
+            distances between nodes.
+        edge_mapping: A mapping of edge labels from number to chemical
+            bond types, e.g. `2 => DOUBLE`. Used when building molecules, e.g.
+            to compute distances between nodes.
 
-    :return A clone of `graph` augmented with 2D coordinates.
+    Returns:
+        A clone of `graph` augmented with 2D coordinates.
     """
     graph = graph.clone()
     nx_graph = pyg_utils.to_networkx(
@@ -76,6 +79,7 @@ def split_train_test(
         This function splits a torch dataset into train and val dataset.
         As torch Dataset class is a mother class of pytorch_geometric dataset class,
         it should work just fine for the latter.
+
     Args:
         dataset (torch_data.Dataset): The original dataset to be splitted
         lengths (list[float]): Percentage of the split. For instance [0.8, 0.2]
