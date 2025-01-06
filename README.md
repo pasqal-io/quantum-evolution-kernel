@@ -1,7 +1,8 @@
 # Quantum Evolution Kernel
 
-This is a Python library that implements embedding graphs as _quantum kernels_ for
-the purpose of machine learning and classification on analog Quantum Processing Units.
+A Python library that implements Quantum Evolution Kernel, a method for measuring the
+similarity between graph-structured data, based on the time-evolution of a quantum system.
+It includes an example application in machine learning classification on a bio-chemical dataset.
 
 For more details about the approach, see https://journals.aps.org/pra/abstract/10.1103/PhysRevA.107.042615
 
@@ -57,4 +58,4 @@ at the [example notebook](examples/pipeline.ipynb).
 
 If you need professional support, an industrial license or a variant of this library
 optimized for your workload, don't hesitate to drop us a line at
-[mailto:licensing@pasqal.com](licensing@pasqal.com).
+[licensing@pasqal.com](mailto:licensing@pasqal.com).
