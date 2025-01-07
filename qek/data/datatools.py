@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Final
 
 import networkx as nx
 import numpy as np
@@ -12,7 +13,6 @@ import torch_geometric.data as pyg_data
 import torch_geometric.utils as pyg_utils
 from rdkit.Chem import AllChem
 
-from qek.data.conversion_data import PTCFM_EDGES_MAP, PTCFM_NODES_MAP
 from qek.data.dataset import ProcessedData
 from qek.utils import graph_to_mol
 
@@ -97,12 +97,6 @@ class BaseGraph:
     A graph being prepared for embedding on a quantum device.
     """
 
-    # The graph in torch geometric format.
-    pyg: pyg_data.Data
-
-    # The graph in networkx format, undirected.
-    nx_graph: nx.graph.Graph
-
     def __init__(self, data: pyg_data.Data):
         """
         Create a graph from geometric data.
@@ -112,8 +106,12 @@ class BaseGraph:
                 It MUST have attributes 'pos'
         """
         if not hasattr(data, "pos"):
-            raise AttributeError("The graph should have an attribute 'pos'")
+            raise AttributeError("The graph should have an attribute 'pos'.")
+
+        # The graph in torch geometric format.
         self.pyg = data.clone()
+
+        # The graph in networkx format, undirected.
         self.nx_graph = pyg_utils.to_networkx(
             data=data,
             node_attrs=["x"],
@@ -123,9 +121,9 @@ class BaseGraph:
 
     def is_disk_graph(self, radius: float) -> bool:
         """
-        Check if `self` is a disk graph with the specified radius, i.e.
-        `self` is a connected graph and, for every pair of nodes `A` and `B`
-        within `graph`, there exists there exists an edge between `A` and `B`
+        A predicate to check if `self` is a disk graph with the specified
+        radius, i.e. `self` is a connected graph and, for every pair of nodes
+        `A` and `B` within `graph`, there exists an edge between `A` and `B`
         if and only if the positions of `A` and `B` within `self` are such
         that `|AB| <= radius`.
 
@@ -161,8 +159,8 @@ class BaseGraph:
 
     def is_embeddable(self, device: pl.devices.Device) -> bool:
         """
-            Return True if the graph can be embedded in the quantum device,
-            False if not.
+            A predicate to check if the graph can be embedded in the
+            quantum device.
 
             For a graph to be embeddable on a device, all the following
             criteria must be fulfilled:
@@ -170,7 +168,7 @@ class BaseGraph:
                 nodes;
             - the device must be physically large enough to place all the
                 nodes (device.max_radial_distance);
-            - the nodes must be distant enough that quantum interacitons
+            - the nodes must be distant enough that quantum interactions
                 may take place (device.min_atom_distance)
 
         Args:
@@ -236,12 +234,44 @@ class MoleculeGraph(BaseGraph):
     quantum device.
     """
 
+    # Constants used to decode the PTC-FM dataset, mapping
+    # integers (used as node attributes) to atom names.
+    PTCFM_ATOM_NAMES: Final[dict[int, str]] = {
+        0: "In",
+        1: "P",
+        2: "C",
+        3: "O",
+        4: "N",
+        5: "Cl",
+        6: "S",
+        7: "Br",
+        8: "Na",
+        9: "F",
+        10: "As",
+        11: "K",
+        12: "Cu",
+        13: "I",
+        14: "Ba",
+        15: "Sn",
+        16: "Pb",
+        17: "Ca",
+    }
+
+    # Constants used to decode the PTC-FM dataset, mapping
+    # integers (used as edge attributes) to bond types.
+    PTCFM_BOND_TYPES: Final[dict[int, Chem.BondType]] = {
+        0: Chem.BondType.TRIPLE,
+        1: Chem.BondType.SINGLE,
+        2: Chem.BondType.DOUBLE,
+        3: Chem.BondType.AROMATIC,
+    }
+
     def __init__(
         self,
         data: pyg_data.Data,
         blockade_radius: float,
-        node_mapping: dict[int, str] = PTCFM_NODES_MAP,
-        edge_mapping: dict[int, Chem.BondType] = PTCFM_EDGES_MAP,
+        node_mapping: dict[int, str] = PTCFM_ATOM_NAMES,
+        edge_mapping: dict[int, Chem.BondType] = PTCFM_BOND_TYPES,
     ):
         """
         Compute the geometry for a molecule graph.
