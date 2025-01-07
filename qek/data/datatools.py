@@ -10,23 +10,47 @@ import torch
 import torch.utils.data as torch_data
 import torch_geometric.data as pyg_data
 import torch_geometric.utils as pyg_utils
-from qek_os.data_io.conversion_data import PTCFM_EDGES_MAP, PTCFM_NODES_MAP
-from qek_os.data_io.dataset import ProcessedData
-from qek_os.utils import graph_to_mol
 from rdkit.Chem import AllChem
+
+from qek.data.conversion_data import PTCFM_EDGES_MAP, PTCFM_NODES_MAP
+from qek.data.dataset import ProcessedData
+from qek.utils import graph_to_mol
 
 
 def add_graph_coord(
-    data: pyg_data.Data,
+    graph: pyg_data.Data,
     blockade_radius: float,
     node_mapping: dict[int, str] = PTCFM_NODES_MAP,
     edge_mapping: dict[int, Chem.BondType] = PTCFM_EDGES_MAP,
 ) -> pyg_data.Data:
-    """Converts a pyg (molecular) data object into a matrix of coordinates and add it to
-    the data object."""
-    graph = data.clone()
+    """
+    Take a molecule described as a graph with only nodes and edges,
+    add 2D coordinates.
+
+    This function:
+    1. Converts the graph into a molecule (using `node_mapping` and
+        `edge_mapping` to determine the types of atoms and bonds).
+    2. Uses the molecule to determine coordinates.
+    3. Injects the coordinates into the graph.
+
+    Args:
+        graph:  A homogeneous graph, in PyTorch Geometric format. Unchanged.
+        blockade_radius: The radius of the Rydberg Blockade. Two
+            connected nodes should be at a distance < blockade_radius, while
+            two disconnected nodes should be at a distance > blockade_radius.
+        node_mapping: A mapping of node labels from numbers to strings,
+            e.g. `5 => "Cl"`. Used when building molecules, e.g. to compute
+            distances between nodes.
+        edge_mapping: A mapping of edge labels from number to chemical
+            bond types, e.g. `2 => DOUBLE`. Used when building molecules, e.g.
+            to compute distances between nodes.
+
+    Returns:
+        A clone of `graph` augmented with 2D coordinates.
+    """
+    graph = graph.clone()
     nx_graph = pyg_utils.to_networkx(
-        data=data,
+        data=graph,
         node_attrs=["x"],
         edge_attrs=["edge_attr"],
         to_undirected=True,
@@ -55,6 +79,7 @@ def split_train_test(
         This function splits a torch dataset into train and val dataset.
         As torch Dataset class is a mother class of pytorch_geometric dataset class,
         it should work just fine for the latter.
+
     Args:
         dataset (torch_data.Dataset): The original dataset to be splitted
         lengths (list[float]): Percentage of the split. For instance [0.8, 0.2]

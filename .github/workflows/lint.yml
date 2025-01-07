@@ -28,4 +28,5 @@ jobs:
 
     - name: Check files
       run: |
+        pre-commit autoupdate --repo https://github.com/pre-commit/pre-commit-hooks
         pre-commit run --all-files

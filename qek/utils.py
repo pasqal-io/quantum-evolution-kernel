@@ -28,7 +28,7 @@ def graph_to_mol(
     atom_index = {}
     for n, d in graph.nodes(data="x"):
         d = np.asarray(d)
-        idx_d = inverse_one_hot(d, dim=0)[0]
+        idx_d: int = inverse_one_hot(d, dim=0)[0]
         atom_index[n] = mw.AddAtom(Chem.Atom(node_mapping[idx_d]))
     for a, b, d in graph.edges(data="edge_attr"):
         start = atom_index[a]
@@ -43,8 +43,9 @@ def graph_to_mol(
 
 
 def inverse_one_hot(array: npt.ArrayLike, dim: int) -> np.ndarray:
-    """Inverts a one-hot encoded tensor along a specified dimension and returns the
-    indices where the value is 1.
+    """
+    Inverts a one-hot encoded tensor along a specified dimension and
+    returns the indices where the value is 1.
 
     Parameters:
     - array (np.ndarray): The one-hot encoded array.
@@ -57,29 +58,42 @@ def inverse_one_hot(array: npt.ArrayLike, dim: int) -> np.ndarray:
     return np.nonzero(tmp_array == 1.0)[dim]
 
 
-def is_disk_graph(G: pyg_data.Data, radius: float) -> bool:
-    """Check if the given graph G is a disk graph with the specified radius.
+def is_disk_graph(graph: pyg_data.Data, radius: float) -> bool:
+    """
+    Check if `graph` is a disk graph with the specified radius, i.e.
+    `graph` is a connected graph and, for every pair of nodes `A` and `B`
+    within `graph`, there exists there exists an edge between `A` and `B`
+    if and only if the positions of `A` and `B` within `graph` are such
+    that `|AB| <= radius`.
 
-    Parameters:
-    G (pyg_data.Data): The input graph. Should have the `pos` attribute
-    radius (float): The radius of the disks.
+    Args:
+        graph:  A homogeneous, undirected, graph, in PyTorch
+            Geometric format. This graph MUST have an attribute `pos`, as
+            provided e.g. by `datatools.add_graph_coord`.
+        radius: The maximal distance between two nodes of `graph`
+            connected be an edge.
 
     Returns:
-    bool: True if the graph is a disk graph with the specified radius, False otherwise.
+        `True` if the graph is a disk graph with the specified radius,
+        `False` otherwise.
     """
 
-    if hasattr(G, "pos"):
-        pos = G.pos
+    if hasattr(graph, "pos"):
+        pos = graph.pos
     else:
-        raise AttributeError("Graph object does not have a pos attribute")
+        raise AttributeError("Graph object does not have a 'pos' attribute")
 
-    nx_graph = pyg_utils.to_networkx(G, to_undirected=True)  # Molecule are unidrected Graphs
-
-    # Check if the graph is connected
-    if not nx.is_connected(nx_graph):
+    if graph.num_nodes == 0 or graph.num_nodes is None:
         return False
 
-    # Check the distances between all pairs of nodes
+    # Molecule are undirected Graphs.
+    nx_graph = pyg_utils.to_networkx(graph, to_undirected=True)
+
+    # Check if the graph is connected.
+    if len(nx_graph) == 0 or not nx.is_connected(nx_graph):
+        return False
+
+    # Check the distances between all pairs of nodes.
     for u, v in nx.non_edges(nx_graph):
         distance = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
         if distance <= radius:

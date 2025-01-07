@@ -4,6 +4,9 @@ from typing import Final
 
 import rdkit.Chem as Chem
 
+# Constants used to decode the PTC-FM data set.
+
+# Node labels
 PTCFM_NODES_MAP: Final[dict[int, str]] = {
     0: "In",
     1: "P",
@@ -25,6 +28,7 @@ PTCFM_NODES_MAP: Final[dict[int, str]] = {
     17: "Ca",
 }
 
+# Edges labels
 PTCFM_EDGES_MAP: Final[dict[int, Chem.BondType]] = {
     0: Chem.BondType.TRIPLE,
     1: Chem.BondType.SINGLE,
