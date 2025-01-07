@@ -17,59 +17,6 @@ from qek.data.dataset import ProcessedData
 from qek.utils import graph_to_mol
 
 
-def add_graph_coord(
-    graph: pyg_data.Data,
-    blockade_radius: float,
-    node_mapping: dict[int, str] = PTCFM_NODES_MAP,
-    edge_mapping: dict[int, Chem.BondType] = PTCFM_EDGES_MAP,
-) -> pyg_data.Data:
-    """
-    Take a molecule described as a graph with only nodes and edges,
-    add 2D coordinates.
-
-    This function:
-    1. Converts the graph into a molecule (using `node_mapping` and
-        `edge_mapping` to determine the types of atoms and bonds).
-    2. Uses the molecule to determine coordinates.
-    3. Injects the coordinates into the graph.
-
-    Args:
-        graph:  A homogeneous graph, in PyTorch Geometric format. Unchanged.
-        blockade_radius: The radius of the Rydberg Blockade. Two
-            connected nodes should be at a distance < blockade_radius, while
-            two disconnected nodes should be at a distance > blockade_radius.
-        node_mapping: A mapping of node labels from numbers to strings,
-            e.g. `5 => "Cl"`. Used when building molecules, e.g. to compute
-            distances between nodes.
-        edge_mapping: A mapping of edge labels from number to chemical
-            bond types, e.g. `2 => DOUBLE`. Used when building molecules, e.g.
-            to compute distances between nodes.
-
-    Returns:
-        A clone of `graph` augmented with 2D coordinates.
-    """
-    graph = graph.clone()
-    nx_graph = pyg_utils.to_networkx(
-        data=graph,
-        node_attrs=["x"],
-        edge_attrs=["edge_attr"],
-        to_undirected=True,
-    )
-    tmp_mol = graph_to_mol(
-        graph=nx_graph,
-        node_mapping=node_mapping,
-        edge_mapping=edge_mapping,
-    )
-    AllChem.Compute2DCoords(tmp_mol, useRingTemplates=True)
-    pos = tmp_mol.GetConformer().GetPositions()[..., :2]  # Convert to 2D
-    dist_list = []
-    for start, end in nx_graph.edges():
-        dist_list.append(np.linalg.norm(pos[start] - pos[end]))
-    norm_factor = np.max(dist_list)
-    graph.pos = pos * blockade_radius / norm_factor
-    return graph
-
-
 def split_train_test(
     dataset: torch_data.Dataset,
     lengths: list[float],
@@ -94,67 +41,6 @@ def split_train_test(
         generator = torch.Generator()
     train, val = torch_data.random_split(dataset=dataset, lengths=lengths, generator=generator)
     return train, val
-
-
-def check_compatibility_graph_device(graph: pyg_data.Data,
-                                     device: pl.devices.Device) -> bool:
-    """
-        Given the characteristics of a graph, return True if the graph can be
-        embedded in the quantum device, False if not.
-
-        A is NOT embeddable if it fulfills any of the following criteria:
-        - it has more nodes than the physical number of atoms on the device;
-        - it is larger than the physical size of the device
-            (`device.max_radial_distance`);
-        - two of the nodes are too close
-            (`device.min_atom_distance`)
-
-    Args:
-        graph (pyg_data): The graph to embed
-        device (pulser.devices.Device): the device
-
-    Returns:
-        bool: True if possible, False if not
-    """
-
-    # Check the number of atoms
-    if graph.num_nodes > device.max_atom_num:
-        return False
-
-    # Check the distance from the center
-    pos_graph = graph.pos
-    distance_from_center = np.linalg.norm(pos_graph, ord=2, axis=-1)
-    if any(distance_from_center > device.max_radial_distance):
-        return False
-
-    # Check the distance between nodes.
-    if _return_min_dist(graph) < device.min_atom_distance:
-        return False
-    return True
-
-
-def _return_min_dist(graph: pyg_data.Data) -> float:
-    """Calculates the minimum distance between any two nodes in the graph,
-    including both original and complementary edges.
-
-    Args:
-        graph (pyg_data.Data): The graph to calculate min distance from.
-
-    Returns:
-        float: Minimum distance between any two nodes.
-    """
-    nx_graph = pyg_utils.to_networkx(graph)
-    graph_pos = graph.pos
-    distances = []
-
-    # get min distance in the graph
-    for start, end in nx_graph.edges():
-        distances.append(np.linalg.norm(graph_pos[start] - graph_pos[end], ord=2))
-    compl_graph = nx.complement(nx_graph)
-    for start, end in compl_graph.edges():
-        distances.append(np.linalg.norm(graph_pos[start] - graph_pos[end], ord=2))
-    min_dist: float = min(distances)
-    return min_dist
 
 
 def save_dataset(dataset: list[ProcessedData], file_path: str) -> None:
@@ -204,3 +90,172 @@ def load_dataset(file_path: str) -> list[ProcessedData]:
             )
             for item in data
         ]
+
+
+class BaseGraph:
+    """
+    A graph being prepared for embedding on a quantum device.
+    """
+
+    # The graph in torch geometric format.
+    pyg: pyg_data.Data
+
+    # The graph in networkx format, undirected.
+    nx_graph: nx.graph.Graph
+
+    def __init__(self, data: pyg_data.Data):
+        """
+        Create a graph from geometric data.
+
+        Args:
+            data:  A homogeneous graph, in PyTorch Geometric format. Unchanged.
+                It MUST have attributes 'pos'
+        """
+        if not hasattr(data, "pos"):
+            raise AttributeError("The graph should have an attribute 'pos'")
+        self.pyg = data.clone()
+        self.nx_graph = pyg_utils.to_networkx(
+            data=data,
+            node_attrs=["x"],
+            edge_attrs=["edge_attr"] if data.edge_attr is not None else None,
+            to_undirected=True,
+        )
+
+    def is_disk_graph(self, radius: float) -> bool:
+        """
+        Check if `self` is a disk graph with the specified radius, i.e.
+        `self` is a connected graph and, for every pair of nodes `A` and `B`
+        within `graph`, there exists there exists an edge between `A` and `B`
+        if and only if the positions of `A` and `B` within `self` are such
+        that `|AB| <= radius`.
+
+        Args:
+            radius: The maximal distance between two nodes of `self`
+                connected be an edge.
+
+        Returns:
+            `True` if the graph is a disk graph with the specified radius,
+            `False` otherwise.
+        """
+
+        if self.pyg.num_nodes == 0 or self.pyg.num_nodes is None:
+            return False
+
+        # Check if the graph is connected.
+        if len(self.nx_graph) == 0 or not nx.is_connected(self.nx_graph):
+            return False
+
+        # Check the distances between all pairs of nodes.
+        pos = self.pyg.pos
+        for u, v in nx.non_edges(self.nx_graph):
+            distance = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
+            if distance <= radius:
+                return False
+
+        for u, v in self.nx_graph.edges():
+            distance = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
+            if distance > radius:
+                return False
+
+        return True
+
+    def is_embeddable(self, device: pl.devices.Device) -> bool:
+        """
+            Return True if the graph can be embedded in the quantum device,
+            False if not.
+
+            For a graph to be embeddable on a device, all the following
+            criteria must be fulfilled:
+            - the device must have at least as many atoms as the graph has
+                nodes;
+            - the device must be physically large enough to place all the
+                nodes (device.max_radial_distance);
+            - the nodes must be distant enough that quantum interacitons
+                may take place (device.min_atom_distance)
+
+        Args:
+            device (pulser.devices.Device): the device
+
+        Returns:
+            bool: True if possible, False if not
+        """
+
+        # Check the number of atoms
+        if self.pyg.num_nodes > device.max_atom_num:
+            return False
+
+        # Check the distance from the center
+        pos_graph = self.pyg.pos
+        distance_from_center = np.linalg.norm(pos_graph, ord=2, axis=-1)
+        if any(distance_from_center > device.max_radial_distance):
+            return False
+
+        # Check the distance between nodes.
+        nodes = list(self.nx_graph.nodes)
+        for i in range(0, len(nodes)):
+            for j in range(i + 1, len(nodes)):
+                dist = np.linalg.norm(pos_graph[i] - pos_graph[j], ord=2)
+                if dist < device.min_atom_distance:
+                    return False
+
+        return True
+
+    def compute_register(self) -> pl.Register:
+        """Create a Quantum Register based on a graph.
+
+        Returns:
+            pulser.Register: register
+        """
+        return pl.Register.from_coordinates(coords=self.pyg.pos)
+
+
+class MoleculeGraph(BaseGraph):
+    """
+    A graph based on molecular data, being prepared for embedding on a
+    quantum device.
+    """
+
+    def __init__(
+        self,
+        data: pyg_data.Data,
+        blockade_radius: float,
+        node_mapping: dict[int, str] = PTCFM_NODES_MAP,
+        edge_mapping: dict[int, Chem.BondType] = PTCFM_EDGES_MAP,
+    ):
+        """
+        Compute the geometry for a molecule graph.
+
+        Args:
+            data:  A homogeneous graph, in PyTorch Geometric format. Unchanged.
+            blockade_radius: The radius of the Rydberg Blockade. Two
+                connected nodes should be at a distance < blockade_radius,
+                while two disconnected nodes should be at a
+                distance > blockade_radius.
+            node_mapping: A mapping of node labels from numbers to strings,
+                e.g. `5 => "Cl"`. Used when building molecules, e.g. to compute
+                distances between nodes.
+            edge_mapping: A mapping of edge labels from number to chemical
+                bond types, e.g. `2 => DOUBLE`. Used when building molecules,
+                e.g. to compute distances between nodes.
+        """
+        pyg = data.clone()
+        pyg.pos = None  # Placeholder
+        super().__init__(pyg)
+
+        # Reconstruct the molecule.
+        tmp_mol = graph_to_mol(
+            graph=self.nx_graph,
+            node_mapping=node_mapping,
+            edge_mapping=edge_mapping,
+        )
+
+        # Extract the geometry.
+        AllChem.Compute2DCoords(tmp_mol, useRingTemplates=True)
+        pos = tmp_mol.GetConformer().GetPositions()[..., :2]  # Convert to 2D
+        dist_list = []
+        for start, end in self.nx_graph.edges():
+            dist_list.append(np.linalg.norm(pos[start] - pos[end]))
+        norm_factor = np.max(dist_list)
+
+        # Finally, store the geometry.
+        self.pyg.pos = pos * blockade_radius / norm_factor
