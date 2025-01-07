@@ -208,6 +208,27 @@ class BaseGraph:
         """
         return pl.Register.from_coordinates(coords=self.pyg.pos)
 
+    def compute_sequence(self, device: pl.devices.Device) -> pl.Sequence:
+        """
+        Compile a Quantum Sequence from a graph.
+        """
+        if not self.is_embeddable(device):
+            raise ValueError(f"The graph is not compatible with {device}")
+        reg = self.compute_register()
+        seq = pl.Sequence(register=reg, device=device)
+
+        # See the companion paper for an explanation on these constants.
+        Omega_max = 1.0 * 2 * np.pi
+        t_max = 660
+        pulse = pl.Pulse.ConstantAmplitude(
+            amplitude=Omega_max,
+            detuning=pl.waveforms.RampWaveform(t_max, 0, 0),
+            phase=0.0,
+        )
+        seq.declare_channel("ising", "rydberg_global")
+        seq.add(pulse, "ising")
+        return seq
+
 
 class MoleculeGraph(BaseGraph):
     """
