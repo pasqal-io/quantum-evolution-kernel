@@ -4,11 +4,12 @@ import collections
 from collections.abc import Sequence
 
 import numpy as np
-from qek_os.data_io.dataset import ProcessedData
 from scipy.spatial.distance import jensenshannon
 
+from qek.data.dataset import ProcessedData
 
-class QekKernel:
+
+class Kernel:
     def __init__(self, mu: float):
         self.mu = mu
 

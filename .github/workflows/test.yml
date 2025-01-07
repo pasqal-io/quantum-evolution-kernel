@@ -16,9 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
   test_qek_ubuntu:
-    name: QEK (ubuntu)
+    name: Run unit/integration tests (ubuntu)
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -42,6 +41,30 @@ jobs:
         name: "coverage-data"
         path: .coverage.*
         if-no-files-found: ignore
+
+  test_notebook:
+    name: Run the Jupyter notebook tutorial (ubuntu)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - name: Checkout QEK
+        uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Hatch
+        run: |
+          pip install hatch
+      - name: Copy samples
+        run: |
+          cp examples/ptcfm_processed_dataset.json .
+      - name: Run notebook
+        run: |
+          hatch run pip install jupyter
+          hatch run jupyter execute examples/pipeline.ipynb
 
   # publish:
   #   name: Publish to PyPI
