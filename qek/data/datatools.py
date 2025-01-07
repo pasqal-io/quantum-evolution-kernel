@@ -96,33 +96,46 @@ def split_train_test(
     return train, val
 
 
-def check_compatibility_graph_device(graph: pyg_data.Data, device: pl.devices.Device) -> bool:
-    """Given the characteristics of a graph, return True if the graph can be embedded in
-    the device, False if not.
+def check_compatibility_graph_device(graph: pyg_data.Data,
+                                     device: pl.devices.Device) -> bool:
+    """
+        Given the characteristics of a graph, return True if the graph can be
+        embedded in the quantum device, False if not.
+
+        A is NOT embeddable if it fulfills any of the following criteria:
+        - it has more nodes than the physical number of atoms on the device;
+        - it is larger than the physical size of the device
+            (`device.max_radial_distance`);
+        - two of the nodes are too close
+            (`device.min_atom_distance`)
 
     Args:
-        graph (pyg_data): The graph to embeded
+        graph (pyg_data): The graph to embed
         device (pulser.devices.Device): the device
 
     Returns:
         bool: True if possible, False if not
     """
-    pos_graph = graph.pos
-    # check the number of atoms
+
+    # Check the number of atoms
     if graph.num_nodes > device.max_atom_num:
         return False
+
     # Check the distance from the center
+    pos_graph = graph.pos
     distance_from_center = np.linalg.norm(pos_graph, ord=2, axis=-1)
     if any(distance_from_center > device.max_radial_distance):
         return False
+
+    # Check the distance between nodes.
     if _return_min_dist(graph) < device.min_atom_distance:
         return False
     return True
 
 
 def _return_min_dist(graph: pyg_data.Data) -> float:
-    """Calculates the minimum distance between any two nodes in the graph, including
-    both original and complementary edges.
+    """Calculates the minimum distance between any two nodes in the graph,
+    including both original and complementary edges.
 
     Args:
         graph (pyg_data.Data): The graph to calculate min distance from.
