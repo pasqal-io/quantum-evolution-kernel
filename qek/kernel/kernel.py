@@ -9,7 +9,7 @@ from scipy.spatial.distance import jensenshannon
 from qek.data.dataset import ProcessedData
 
 
-class QekKernel:
+class Kernel:
     def __init__(self, mu: float):
         self.mu = mu
 

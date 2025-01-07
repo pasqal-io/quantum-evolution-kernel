@@ -1,3 +1,3 @@
-from .kernel import QekKernel
+from .kernel import Kernel
 
-__all__ = ["QekKernel"]
+__all__ = ["Kernel"]

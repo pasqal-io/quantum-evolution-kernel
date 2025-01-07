@@ -41,6 +41,7 @@ jobs:
         name: "coverage-data"
         path: .coverage.*
         if-no-files-found: ignore
+
   test_notebook:
     name: Run the Jupyter notebook tutorial (ubuntu)
     runs-on: ubuntu-latest
