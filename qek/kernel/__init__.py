@@ -1,3 +1,3 @@
-from .kernel import Kernel
+from .kernel import QuantumEvolutionKernel
 
-__all__ = ["Kernel"]
+__all__ = ["QuantumEvolutionKernel"]

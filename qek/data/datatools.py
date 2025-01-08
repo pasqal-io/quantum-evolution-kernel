@@ -208,7 +208,10 @@ class BaseGraph:
 
     def compute_sequence(self, device: pl.devices.Device) -> pl.Sequence:
         """
-        Compile a Quantum Sequence from a graph.
+        Compile a Quantum Sequence from a graph for a specific device.
+
+        Raises:
+            ValueError if the graph cannot be embedded on the given device.
         """
         if not self.is_embeddable(device):
             raise ValueError(f"The graph is not compatible with {device}")
