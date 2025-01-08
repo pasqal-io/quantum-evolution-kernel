@@ -49,5 +49,4 @@ at the [example notebook](examples/pipeline.ipynb).
 ## Going further
 
 If you need professional support, an industrial license or a variant of this library
-optimized for your workload, don't hesitate to drop us a line at
-[licensing@pasqal.com](mailto:licensing@pasqal.com).
+optimized for your workload, don't hesitate to drop us a line at https://www.pasqal.com/contact-us/.
