@@ -9,7 +9,7 @@ from scipy.spatial.distance import jensenshannon
 from qek.data.dataset import ProcessedData
 
 
-class Kernel:
+class QuantumEvolutionKernel:
     def __init__(self, mu: float):
         self.mu = mu
 
