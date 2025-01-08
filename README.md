@@ -8,15 +8,7 @@ For more details about the approach, see https://journals.aps.org/pra/abstract/1
 
 ## Installation
 
-### Using `uv`
-
-To add `pasqal-qek` as a dependency using the `uv` package manager:
-
-```sh
-$ uv add pasqal-qek
-```
-
-### Using any other pyproject-compatible Python manager
+### Using `hatch`, `uv` or any pyproject-compatible Python manager
 
 Edit file `pyproject.toml` to add the line
 
