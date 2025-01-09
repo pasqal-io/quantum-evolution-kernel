@@ -100,6 +100,8 @@ class BaseGraph:
     A graph being prepared for embedding on a quantum device.
     """
 
+    device: Final[pl.devices.Device]
+
     def __init__(self, data: pyg_data.Data, device: pl.devices.Device):
         """
         Create a graph from geometric data.
