@@ -215,7 +215,11 @@ class BaseGraph:
         """
         if not self.is_embeddable(device):
             raise ValueError(f"The graph is not compatible with {device}")
+
         reg = self.compute_register()
+        if device.requires_layout:
+            reg = reg.with_automatic_layout(device=device)
+
         seq = pl.Sequence(register=reg, device=device)
 
         # See the companion paper for an explanation on these constants.
