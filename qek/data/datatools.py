@@ -24,13 +24,14 @@ def split_train_test(
 ) -> tuple[torch_data.Dataset, torch_data.Dataset]:
     """
         This function splits a torch dataset into train and val dataset.
-        As torch Dataset class is a mother class of pytorch_geometric dataset class,
-        it should work just fine for the latter.
+        As torch Dataset class is a mother class of pytorch_geometric dataset
+        class, it should work just fine for the latter.
 
     Args:
         dataset (torch_data.Dataset): The original dataset to be splitted
         lengths (list[float]): Percentage of the split. For instance [0.8, 0.2]
-        seed (int | None, optional): Seed for reproductibility. Defaults to None.
+        seed (int | None, optional): Seed for reproductibility. Defaults to
+        None.
 
     Returns:
         tuple[torch_data.Dataset, torch_data.Dataset]: train and val dataset
@@ -47,8 +48,10 @@ def save_dataset(dataset: list[ProcessedData], file_path: str) -> None:
     """Saves a dataset to a JSON file.
 
     Args:
-        dataset (list[ProcessedData]): The dataset to be saved, containing RegisterData instances.
-        file_path (str): The path where the dataset will be saved as a JSON file.
+        dataset (list[ProcessedData]): The dataset to be saved, containing
+            RegisterData instances.
+        file_path (str): The path where the dataset will be saved as a JSON
+            file.
 
     Note:
         The data is stored in a format suitable for loading with load_dataset.
@@ -75,10 +78,12 @@ def load_dataset(file_path: str) -> list[ProcessedData]:
         file_path (str): The path to the JSON file containing the dataset.
 
     Note:
-        The data is loaded in the format that was used when saving with save_dataset.
+        The data is loaded in the format that was used when saving with
+            save_dataset.
 
     Returns:
-        A list of ProcessedData instances, corresponding to the data stored in the JSON file.
+        A list of ProcessedData instances, corresponding to the data stored in
+            the JSON file.
     """
     with open(file_path) as file:
         data = json.load(file)
@@ -235,8 +240,8 @@ class BaseGraph:
         if not self.is_embeddable():
             raise ValueError(f"The graph is not compatible with {self.device}")
         reg = self.compute_register()
-        if device.requires_layout:
-            reg = reg.with_automatic_layout(device=device)
+        if self.device.requires_layout:
+            reg = reg.with_automatic_layout(device=self.device)
 
         seq = pl.Sequence(register=reg, device=self.device)
 
