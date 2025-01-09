@@ -10,10 +10,29 @@ import pulser as pl
 @dataclass
 class ProcessedData:
     """
-    Data class that contains:
-    - a sequence (i.e. a register + a pulse)
-    - the state dictionary, converted to int from a numpy.int64 array for serialization purposes
-    - the target
+    Data on a single graph obtained from the Quantum Device.
+
+    Attributes:
+        sequence: The sequence, derived from the graph geometry,
+            executed on the device.
+        state_dict: A dictionary {bitstring: number of instances}
+            for this graph.
+        target: The target, i.e. the identifier of the graph.
+
+    The state dictionary represents an approximation of the quantum
+    state of the device for this graph after completion of the
+    algorithm.
+
+    - keys are bitstrings, i.e. strings of N time 0 or 1, where N
+      is the number of nodes in the graph. Each of these {0, 1}
+      corresponds to a possible state for the corresponding
+      node
+    - values are the number of samples observed with this specific
+      state of the graph.
+
+    The sum of all values for the dictionary is equal to the total
+    number of samples observed on the quantum device for this graph.
+
     """
 
     sequence: pl.Sequence
