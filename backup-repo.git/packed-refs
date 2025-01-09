@@ -1,0 +1,18 @@
+# pack-refs with: peeled fully-peeled sorted 
+ceff59c2f2ca186aa7091863f482895294970d47 refs/heads/gh-pages
+747ebaac15b268ece7f88cedfa58085665b9cd1e refs/heads/main
+551f8a1908cbe87681f582ad3ad314e63f717d9f refs/heads/rg/enable-minimal-tests
+5717367046a8e709d7a334d3414bc5e46338797d refs/heads/yoric/constant
+0efe0f737fc1767ba861c3ce920eb6c8f0c5a14b refs/heads/yoric/enable-minimal-tests
+682ebc5fd78debbe2bee0d22c828bf09cecc3e92 refs/heads/yoric/readme
+499f781113e190f774ddc92101958e01e7301f23 refs/heads/yoric/test-notebook
+9bcd8f7e2d17f6923f84ede231a3c7b0b849ccb5 refs/heads/yoric/tests
+b1356a1617bbd0be16bc942bc98c785789a7a515 refs/pull/1/head
+499f781113e190f774ddc92101958e01e7301f23 refs/pull/10/head
+930acfaa5b8888601162ea933a9d6581661ad3f4 refs/pull/13/head
+3298d8f03fc256f138a0728d1b357ae9718e65b7 refs/pull/14/head
+5717367046a8e709d7a334d3414bc5e46338797d refs/pull/15/head
+682ebc5fd78debbe2bee0d22c828bf09cecc3e92 refs/pull/16/head
+551f8a1908cbe87681f582ad3ad314e63f717d9f refs/pull/6/head
+0efe0f737fc1767ba861c3ce920eb6c8f0c5a14b refs/pull/7/head
+b3c2c0b363f5aecf92d1af7fe165a6f421f5bb28 refs/pull/8/head
