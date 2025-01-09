@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pulser
 import networkx as nx
 import torch
 import torch_geometric.datasets as pyg_dataset
@@ -14,11 +15,9 @@ def test_graph_init() -> None:
     original_ptcfm_data = pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
 
     # Check that `add_graph_coord` doesn't break with this dataset.
-    RADIUS = 5.001
-    EPS = 0.01
 
     for data in original_ptcfm_data:
-        graph = MoleculeGraph(data=data, blockade_radius=RADIUS)
+        graph = MoleculeGraph(data=data, device=pulser.AnalogDevice)
 
         # Make sure that the graph has been augmented with "pos".
         assert hasattr(graph.pyg, "pos")
@@ -34,9 +33,9 @@ def test_graph_init() -> None:
 
         assert nx.is_isomorphic(nx_graph, nx_reconstruct)
 
-    # The first graph from the dataset is known to be a disk graph.
-    graph = MoleculeGraph(data=original_ptcfm_data[0], blockade_radius=RADIUS)
-    assert graph.is_disk_graph(RADIUS + EPS)
+    # The first graph from the dataset is known to be embeddable.
+    graph = MoleculeGraph(data=original_ptcfm_data[0], device=pulser.AnalogDevice)
+    assert graph.is_disk_graph(pulser.AnalogDevice.min_atom_distance + 0.01)
 
 
 def test_is_disk_graph_false() -> None:
@@ -49,7 +48,8 @@ def test_is_disk_graph_false() -> None:
             x=torch.tensor([], dtype=torch.float),
             edge_index=torch.tensor([], dtype=torch.int),
             pos=torch.tensor([], dtype=torch.float),
-        )
+        ),
+        device=pulser.AnalogDevice,
     )
     assert not graph_empty.is_disk_graph(radius=1.0)
 
@@ -67,7 +67,8 @@ def test_is_disk_graph_false() -> None:
                 dtype=torch.int,
             ),
             pos=torch.tensor([[0], [1], [2]], dtype=torch.float),
-        )
+        ),
+        device=pulser.AnalogDevice,
     )
     assert not graph_disconnected_close.is_disk_graph(radius=10.0)
 
@@ -99,7 +100,8 @@ def test_is_disk_graph_false() -> None:
                 dtype=torch.int,
             ),
             pos=torch.tensor([[0], [1], [12]], dtype=torch.float),
-        )
+        ),
+        device=pulser.AnalogDevice,
     )
     assert not graph_connected_far.is_disk_graph(radius=10.0)
 
@@ -127,7 +129,8 @@ def test_is_disk_graph_false() -> None:
                 dtype=torch.int,
             ),
             pos=torch.tensor([[0], [1], [2]], dtype=torch.float),
-        )
+        ),
+        device=pulser.AnalogDevice,
     )
     assert not graph_partially_connected_close.is_disk_graph(radius=10.0)
 
@@ -141,7 +144,8 @@ def test_is_disk_graph_true() -> None:
         Data(
             x=torch.tensor([0], dtype=torch.float),
             edge_index=torch.tensor([]),
-        )
+        ),
+        device=pulser.AnalogDevice,
     )
     assert graph_single_node.is_disk_graph(radius=1.0)
 
@@ -172,6 +176,7 @@ def test_is_disk_graph_true() -> None:
                 dtype=torch.int,
             ),
             pos=torch.tensor([[0], [1], [2]], dtype=torch.float),
-        )
+        ),
+        device=pulser.AnalogDevice,
     )
     assert graph_connected_close.is_disk_graph(radius=10.0)

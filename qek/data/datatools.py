@@ -24,13 +24,14 @@ def split_train_test(
 ) -> tuple[torch_data.Dataset, torch_data.Dataset]:
     """
         This function splits a torch dataset into train and val dataset.
-        As torch Dataset class is a mother class of pytorch_geometric dataset class,
-        it should work just fine for the latter.
+        As torch Dataset class is a mother class of pytorch_geometric dataset
+        class, it should work just fine for the latter.
 
     Args:
         dataset (torch_data.Dataset): The original dataset to be splitted
         lengths (list[float]): Percentage of the split. For instance [0.8, 0.2]
-        seed (int | None, optional): Seed for reproductibility. Defaults to None.
+        seed (int | None, optional): Seed for reproductibility. Defaults to
+        None.
 
     Returns:
         tuple[torch_data.Dataset, torch_data.Dataset]: train and val dataset
@@ -47,8 +48,10 @@ def save_dataset(dataset: list[ProcessedData], file_path: str) -> None:
     """Saves a dataset to a JSON file.
 
     Args:
-        dataset (list[ProcessedData]): The dataset to be saved, containing RegisterData instances.
-        file_path (str): The path where the dataset will be saved as a JSON file.
+        dataset (list[ProcessedData]): The dataset to be saved, containing
+            RegisterData instances.
+        file_path (str): The path where the dataset will be saved as a JSON
+            file.
 
     Note:
         The data is stored in a format suitable for loading with load_dataset.
@@ -75,10 +78,12 @@ def load_dataset(file_path: str) -> list[ProcessedData]:
         file_path (str): The path to the JSON file containing the dataset.
 
     Note:
-        The data is loaded in the format that was used when saving with save_dataset.
+        The data is loaded in the format that was used when saving with
+            save_dataset.
 
     Returns:
-        A list of ProcessedData instances, corresponding to the data stored in the JSON file.
+        A list of ProcessedData instances, corresponding to the data stored in
+            the JSON file.
     """
     with open(file_path) as file:
         data = json.load(file)
@@ -92,21 +97,30 @@ def load_dataset(file_path: str) -> list[ProcessedData]:
         ]
 
 
+EPSILON_DISTANCE_UM = 0.01
+
+
 class BaseGraph:
     """
     A graph being prepared for embedding on a quantum device.
     """
 
-    def __init__(self, data: pyg_data.Data):
+    device: Final[pl.devices.Device]
+
+    def __init__(self, data: pyg_data.Data, device: pl.devices.Device):
         """
         Create a graph from geometric data.
 
         Args:
             data:  A homogeneous graph, in PyTorch Geometric format. Unchanged.
                 It MUST have attributes 'pos'
+            device: The device for which the graph is prepared.
         """
         if not hasattr(data, "pos"):
             raise AttributeError("The graph should have an attribute 'pos'.")
+
+        # The device for which the graph is prepared.
+        self.device = device
 
         # The graph in torch geometric format.
         self.pyg = data.clone()
@@ -146,24 +160,29 @@ class BaseGraph:
         # Check the distances between all pairs of nodes.
         pos = self.pyg.pos
         for u, v in nx.non_edges(self.nx_graph):
-            distance = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
-            if distance <= radius:
+            distance_um = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
+            if distance_um <= radius:
+                # These disjointed nodes would interact with each other, so
+                # this is not an embeddable graph.
                 return False
 
         for u, v in self.nx_graph.edges():
-            distance = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
-            if distance > radius:
+            distance_um = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
+            if distance_um > radius:
+                # These joined nodes would not interact with each other, so
+                # this is not an embeddable graph.
                 return False
 
         return True
 
-    def is_embeddable(self, device: pl.devices.Device) -> bool:
+    def is_embeddable(self) -> bool:
         """
             A predicate to check if the graph can be embedded in the
             quantum device.
 
             For a graph to be embeddable on a device, all the following
             criteria must be fulfilled:
+            - the graph must be non-empty;
             - the device must have at least as many atoms as the graph has
                 nodes;
             - the device must be physically large enough to place all the
@@ -171,30 +190,35 @@ class BaseGraph:
             - the nodes must be distant enough that quantum interactions
                 may take place (device.min_atom_distance)
 
-        Args:
-            device (pulser.devices.Device): the device
-
         Returns:
             bool: True if possible, False if not
         """
 
-        # Check the number of atoms
-        if self.pyg.num_nodes > device.max_atom_num:
+        # Reject empty graphs.
+        if self.pyg.num_nodes == 0 or self.pyg.num_nodes is None:
+            return False
+
+        # Reject graphs that have more nodes than can be represented
+        # on the device.
+        if self.pyg.num_nodes > self.device.max_atom_num:
             return False
 
         # Check the distance from the center
-        pos_graph = self.pyg.pos
-        distance_from_center = np.linalg.norm(pos_graph, ord=2, axis=-1)
-        if any(distance_from_center > device.max_radial_distance):
+        pos = self.pyg.pos
+        distance_from_center = np.linalg.norm(pos, ord=2, axis=-1)
+        if any(distance_from_center > self.device.max_radial_distance):
             return False
 
-        # Check the distance between nodes.
-        nodes = list(self.nx_graph.nodes)
-        for i in range(0, len(nodes)):
-            for j in range(i + 1, len(nodes)):
-                dist = np.linalg.norm(pos_graph[i] - pos_graph[j], ord=2)
-                if dist < device.min_atom_distance:
-                    return False
+        # Check distance between nodes
+        if not self.is_disk_graph(self.device.min_atom_distance + EPSILON_DISTANCE_UM):
+            return False
+
+        for u, v in self.nx_graph.edges():
+            distance_um = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
+            if distance_um < self.device.min_atom_distance:
+                # These nodes are too close to each other, preventing quantum
+                # interactions on the device.
+                return False
 
         return True
 
@@ -206,21 +230,20 @@ class BaseGraph:
         """
         return pl.Register.from_coordinates(coords=self.pyg.pos)
 
-    def compute_sequence(self, device: pl.devices.Device) -> pl.Sequence:
+    def compute_sequence(self) -> pl.Sequence:
         """
         Compile a Quantum Sequence from a graph for a specific device.
 
         Raises:
             ValueError if the graph cannot be embedded on the given device.
         """
-        if not self.is_embeddable(device):
-            raise ValueError(f"The graph is not compatible with {device}")
-
+        if not self.is_embeddable():
+            raise ValueError(f"The graph is not compatible with {self.device}")
         reg = self.compute_register()
-        if device.requires_layout:
-            reg = reg.with_automatic_layout(device=device)
+        if self.device.requires_layout:
+            reg = reg.with_automatic_layout(device=self.device)
 
-        seq = pl.Sequence(register=reg, device=device)
+        seq = pl.Sequence(register=reg, device=self.device)
 
         # See the companion paper for an explanation on these constants.
         Omega_max = 1.0 * 2 * np.pi
@@ -276,7 +299,7 @@ class MoleculeGraph(BaseGraph):
     def __init__(
         self,
         data: pyg_data.Data,
-        blockade_radius: float,
+        device: pl.devices.Device,
         node_mapping: dict[int, str] = PTCFM_ATOM_NAMES,
         edge_mapping: dict[int, Chem.BondType] = PTCFM_BOND_TYPES,
     ):
@@ -298,7 +321,7 @@ class MoleculeGraph(BaseGraph):
         """
         pyg = data.clone()
         pyg.pos = None  # Placeholder
-        super().__init__(pyg)
+        super().__init__(pyg, device)
 
         # Reconstruct the molecule.
         tmp_mol = graph_to_mol(
@@ -310,10 +333,14 @@ class MoleculeGraph(BaseGraph):
         # Extract the geometry.
         AllChem.Compute2DCoords(tmp_mol, useRingTemplates=True)
         pos = tmp_mol.GetConformer().GetPositions()[..., :2]  # Convert to 2D
+
+        # Scale the geometry so that the longest edge is as long as
+        # `device.min_atom_distance`.
         dist_list = []
         for start, end in self.nx_graph.edges():
             dist_list.append(np.linalg.norm(pos[start] - pos[end]))
         norm_factor = np.max(dist_list)
+        pos = pos * device.min_atom_distance / norm_factor
 
-        # Finally, store the geometry.
-        self.pyg.pos = pos * blockade_radius / norm_factor
+        # Finally, store the position.
+        self.pyg.pos = pos
