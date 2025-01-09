@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "quantum-evolution-kernel"
 description = "A new quantum library."
 readme = "README.md"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">=3.10,<3.13"
 license = { text = "MIT-derived" }
 keywords = ["quantum"]
