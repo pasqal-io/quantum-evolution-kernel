@@ -3,16 +3,17 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "quantum-evolution-kernel"
+name = "pasqal-quantum-evolution-kernel"
 description = "A new quantum library."
 readme = "README.md"
 version = "0.1.0"
 requires-python = ">=3.10,<3.13"
-license = { text = "Proprietary" }
+license = { text = "MIT-derived" }
 keywords = ["quantum"]
 authors = [
   { name = "Shaheen Acheche", email = "shaheen.acheche@pasqal.com" },
-  { name = "Roland Guichard", email = "roland.guichard@pasqal.com" }
+  { name = "Roland Guichard", email = "roland.guichard@pasqal.com" },
+  { name = "David Teller",    email = "david.teller@pasqal.com" },
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",

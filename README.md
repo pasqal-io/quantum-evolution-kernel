@@ -43,10 +43,14 @@ $ pipx install pasqal-qek
 ```
 
 ## Usage
+
 For the time being, the easiest way to learn how to use this package is to look
 at the [example notebook](examples/pipeline.ipynb).
 
-## Going further
+See also the [full API documentation](https://pqs.pages.pasqal.com/quantum-evolution-kernel/).
 
-If you need professional support, an industrial license or a variant of this library
-optimized for your workload, don't hesitate to drop us a line at https://www.pasqal.com/contact-us/.
+## Getting in touch
+
+- [Pasqal Community Portal](https://community.pasqal.com/) (forums, chat, tutorials, examples, code library).
+- [GitHub Repository](https://github.com/pasqal-io/quantum-evolution-kernel) (source code, issue tracker).
+- [Professional Support](https://www.pasqal.com/contact-us/) (if you need tech support, custom licenses, a variant of this library optimized for your workload, your own QPU, remote access to a QPU, ...)
