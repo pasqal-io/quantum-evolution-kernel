@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pasqal-quantum-evolution-kernel"
+name = "quantum-evolution-kernel"
 description = "A new quantum library."
 readme = "README.md"
 version = "0.1.0"
