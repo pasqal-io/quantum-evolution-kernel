@@ -26,13 +26,13 @@ class ProcessedData:
     - keys are bitstrings, i.e. strings of N time 0 or 1, where N
       is the number of qubits, i.e. the number of nodes in the graph.
       Each of these {0, 1} corresponds to a possible state for the
-      corresponding qubit/node.
+      corresponding qubit.
     - values are the number of samples observed with this specific
-      state of the register/graph.
+      state of the register.
 
     The sum of all values for the dictionary is equal to the total
-    number of samples observed on the quantum device for this graph.
-
+    number of samples observed on the quantum device (for this
+    specific graph).
     """
 
     sequence: pl.Sequence
