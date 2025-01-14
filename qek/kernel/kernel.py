@@ -7,6 +7,7 @@ from collections.abc import Sequence
 
 import numpy as np
 from scipy.spatial.distance import jensenshannon
+import torch
 
 from qek.data.dataset import ProcessedData
 
@@ -33,9 +34,10 @@ class QuantumEvolutionKernel:
         self.kernel_matrix: np.ndarray
 
     def __call__(
-        self, graph_1: ProcessedData, graph_2: ProcessedData, size_max: int = 100
+        self, graph_1: ProcessedData, graph_2: ProcessedData, size_max: int | None = None
     ) -> float:
-        """Compute the similarity between two graphs using Jensen-Shannon divergence.
+        """Compute the similarity between two graphs using Jensen-Shannon
+        divergence.
 
         This method computes the square of the Jensen-Shannon divergence (JSD)
         between two probability distributions over bitstrings. The JSD is a
@@ -43,21 +45,24 @@ class QuantumEvolutionKernel:
         can be used as a kernel for machine learning algorithms that require a
         similarity function.
 
-        The input graphs are assumed to have been processed using the ProcessedData
-        class from qek_os.data_io.dataset. The size_max parameter controls the maximum
-        length of the bitstrings considered in the computation.
+        The input graphs are assumed to have been processed using the
+        ProcessedData class from qek_os.data_io.dataset. Parameter `size_max`
+        controls the maximum length of the bitstrings considered in the
+        computation.
         Args:
             graph_1 (ProcessedData): First graph.
             graph_2 (ProcessedData): Second graph.
-            size_max (float, optional): Maximum length of bitstrings to consider. Defaults to -1.
+            size_max (int, optional): Maximum length of bitstrings to
+            consider. Defaults to all.
 
         Returns:
-            float: Similarity between the two graphs, scaled by a factor that depends on mu.
+            float: Similarity between the two graphs, scaled by a factor that
+            depends on mu.
 
         Notes:
-            The JSD is computed using the jensenshannon function from scipy.spatial.distance,
-            and it is squared because jensenshannon scipy function output the distance instead
-            of the divergence.
+            The JSD is computed using the jensenshannon function from
+            `scipy.spatial.distance`, and it is squared because scipy function
+            `jensenshannon` outputs the distance instead of the divergence.
         """
         dist_graph_1 = dist_excitation_and_vec(
             count_bitstring=graph_1.state_dict, size_max=size_max
@@ -195,30 +200,48 @@ def count_occupation_from_bitstring(bitstring: str) -> int:
     return sum(int(bit) for bit in bitstring)
 
 
-def dist_excitation_and_vec(count_bitstring: dict[str, int], size_max: int) -> np.ndarray:
-    """Calculates the distribution of excitation energies from a dictionary of
-    bitstrings to their respective counts, and then creates a NumPy vector with the
-    results.
+def dist_excitation_and_vec(
+    count_bitstring: dict[str, int], size_max: int | None = None
+) -> np.ndarray:
+    """
+    Calculates the distribution of excitation energies from a dictionary of
+    bitstrings to their respective counts.
 
     Args:
         count_bitstring (dict[str, int]): A dictionary mapping binary strings
             to their counts.
-        size_max (int): The maximum size of the resulting NumPy array.
+        size_max (int | None): If specified, only keep `size_max` energy
+            distributions in the output. Otherwise, keep all values.
 
     Returns:
         np.ndarray: A NumPy array where keys are the number of '1' bits
             in each binary string and values are the normalized counts.
     """
-    count_occ: dict = collections.defaultdict(float)
+
+    if len(count_bitstring) == 0:
+        raise ValueError("empty counter")
+
+    if size_max is None:
+        # If size is not specified, it's the length of bitstrings.
+        # We assume that all bitstrings in `count_bitstring` have the
+        # same length.
+        for bitstring in count_bitstring.keys():
+            size_max = len(bitstring)
+            break
+
+    # Keep mypy happy.
+    assert type(size_max) is int
+
+    count_occupation: dict[int, int] = collections.defaultdict(int)
     total = 0.0
     for k, v in count_bitstring.items():
-        nbr_occ = count_occupation_from_bitstring(k)
-        count_occ[nbr_occ] += v
+        occupation = count_occupation_from_bitstring(k)
+        count_occupation[occupation] += v
         total += v
 
-    numpy_vec = np.zeros(size_max)
-    for k, v in count_occ.items():
-        if int(k) <= size_max:
-            numpy_vec[k] = v / total
+    numpy_vec = np.zeros(size_max, dtype=torch.float)
+    for occupation, count in count_occupation.items():
+        if occupation <= size_max:
+            numpy_vec[occupation] = count / total
 
     return numpy_vec
