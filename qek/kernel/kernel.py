@@ -63,6 +63,15 @@ class QuantumEvolutionKernel:
             `scipy.spatial.distance`, and it is squared because scipy function
             `jensenshannon` outputs the distance instead of the divergence.
         """
+        if len(graph_1.state_dict) == 0 or len(graph_2.state_dict) == 0:
+            raise ValueError("An input counter is empty")
+
+        if size_max is None:
+            # If size is not specified, it's the length of bitstrings.
+            bitstring_1 = next(iter(graph_1.state_dict.keys()))
+            bitstring_2 = next(iter(graph_1.state_dict.keys()))
+            size_max = max(len(bitstring_1), len(bitstring_2))
+
         dist_graph_1 = dist_excitation_and_vec(
             count_bitstring=graph_1.state_dict, size_max=size_max
         )
@@ -246,9 +255,9 @@ def dist_excitation_and_vec(
         count_occupation[occupation] += v
         total += v
 
-    numpy_vec = np.zeros(size_max, dtype=float)
+    numpy_vec = np.zeros(size_max + 1, dtype=float)
     for occupation, count in count_occupation.items():
-        if occupation <= size_max:
+        if occupation < size_max:
             numpy_vec[occupation] = count / total
 
     return numpy_vec
