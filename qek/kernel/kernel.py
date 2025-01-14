@@ -230,13 +230,13 @@ def dist_excitation_and_vec(
         # If size is not specified, it's the length of bitstrings.
         # We assume that all bitstrings in `count_bitstring` have the
         # same length and we have just checked that it's not empty.
-        for bitstring in count_bitstring.keys():
-            # Pick the length of the first bitstring.
-            size_max = len(bitstring)
-            break
 
-    # Since `count_bitstring` is not empty, we have ensured that `size_max`
-    # is now always an `int`. This assertion ensures that mypy agrees.
+        # Pick the length of the first bitstring.
+        # We have already checked that `count_bitstring` is not empty.
+        bitstring = next(iter(count_bitstring.keys()))
+        size_max = len(bitstring)
+
+    # Make mypy realize that `size_max` is now always an `int`.
     assert type(size_max) is int
 
     count_occupation: dict[int, int] = collections.defaultdict(int)
