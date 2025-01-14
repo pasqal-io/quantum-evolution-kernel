@@ -13,7 +13,7 @@ For more details about the approach, see https://journals.aps.org/pra/abstract/1
 Edit file `pyproject.toml` to add the line
 
 ```toml
-  "pasqal-qek"
+  "quantum-evolution-kernel"
 ```
 
 to the list of `dependencies`.
@@ -37,9 +37,9 @@ $ . venv/bin/activate
 3. Install the package
 
 ```sh
-$ pip install pasqal-qek
+$ pip install quantum-evolution-kernel
 # or
-$ pipx install pasqal-qek
+$ pipx install quantum-evolution-kernel
 ```
 
 ## Usage
