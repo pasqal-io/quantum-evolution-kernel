@@ -7,7 +7,6 @@ from collections.abc import Sequence
 
 import numpy as np
 from scipy.spatial.distance import jensenshannon
-import torch
 
 from qek.data.dataset import ProcessedData
 
@@ -117,15 +116,17 @@ class QuantumEvolutionKernel:
     def create_train_kernel_matrix(self, train_dataset: Sequence[ProcessedData]) -> np.ndarray:
         """Compute a kernel matrix for a given training dataset.
 
-        This method computes a symmetric N x N kernel matrix from the Jensen-Shannon
-        divergences between all pairs of graphs in the input dataset. The resulting matrix
-        can be used as a similarity metric for machine learning algorithms.
+        This method computes a symmetric N x N kernel matrix from the
+        Jensen-Shannon divergences between all pairs of graphs in the input
+        dataset. The resulting matrix can be used as a similarity metric for
+        machine learning algorithms.
         Args:
-            train_dataset (Sequence[ProcessedData]): A list of ProcessedData objects to compute
-            the kernel matrix from.
+            train_dataset (Sequence[ProcessedData]): A list of ProcessedData
+            objects to compute the kernel matrix from.
         Returns:
-            np.ndarray: An N x N symmetric matrix where the entry at row i and column j represents
-            the similarity between the graphs in positions i and j of the input dataset.
+            np.ndarray: An N x N symmetric matrix where the entry at row i and
+            column j represents the similarity between the graphs in positions
+            i and j of the input dataset.
         """
         N = len(train_dataset)
         kernel_mat = np.zeros((N, N))
@@ -140,22 +141,26 @@ class QuantumEvolutionKernel:
         test_dataset: Sequence[ProcessedData],
         train_dataset: Sequence[ProcessedData],
     ) -> np.ndarray:
-        """Compute a kernel matrix for a given testing dataset and training set.
+        """
+        Compute a kernel matrix for a given testing dataset and training
+        set.
 
         This method computes an N x M kernel matrix from the Jensen-Shannon
         divergences between all pairs of graphs in the input testing dataset
         and the training dataset.
-        The resulting matrix can be used as a similarity metric for machine learning algorithms,
-        particularly when evaluating the performance on the test dataset using a trained model.
+        The resulting matrix can be used as a similarity metric for machine
+        learning algorithms,
+        particularly when evaluating the performance on the test dataset using
+        a trained model.
         Args:
             test_dataset (Sequence[ProcessedData]): A list of ProcessedData
             objects representing the testing dataset.
             train_dataset (Sequence[ProcessedData]): A list of ProcessedData
             objects representing the training set.
         Returns:
-            np.ndarray: An M x N matrix where the entry at row i and column j represents
-            the similarity between the graph in position i of the test dataset
-            and the graph in position j of the training set.
+            np.ndarray: An M x N matrix where the entry at row i and column j
+            represents the similarity between the graph in position i of the
+            test dataset and the graph in position j of the training set.
         """
         N_train = len(train_dataset)
         N_test = len(test_dataset)
@@ -219,17 +224,19 @@ def dist_excitation_and_vec(
     """
 
     if len(count_bitstring) == 0:
-        raise ValueError("empty counter")
+        raise ValueError("The input counter is empty")
 
     if size_max is None:
         # If size is not specified, it's the length of bitstrings.
         # We assume that all bitstrings in `count_bitstring` have the
-        # same length.
+        # same length and we have just checked that it's not empty.
         for bitstring in count_bitstring.keys():
+            # Pick the length of the first bitstring.
             size_max = len(bitstring)
             break
 
-    # Keep mypy happy.
+    # Since `count_bitstring` is not empty, we have ensured that `size_max`
+    # is now always an `int`. This assertion ensures that mypy agrees.
     assert type(size_max) is int
 
     count_occupation: dict[int, int] = collections.defaultdict(int)
@@ -239,7 +246,7 @@ def dist_excitation_and_vec(
         count_occupation[occupation] += v
         total += v
 
-    numpy_vec = np.zeros(size_max, dtype=torch.float)
+    numpy_vec = np.zeros(size_max, dtype=float)
     for occupation, count in count_occupation.items():
         if occupation <= size_max:
             numpy_vec[occupation] = count / total
