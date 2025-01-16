@@ -179,6 +179,7 @@ class QuantumEvolutionKernel:
                 kernel_mat[i][j] = self(test_dataset[i], train_dataset[j])
         return kernel_mat
 
+
     def set_params(self, **kwargs: dict[str, Any]) -> None:
         """Set multiple parameters for the kernel.
 
