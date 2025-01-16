@@ -52,8 +52,8 @@ class QuantumEvolutionKernel:
             jensenshannon(p=dist_graph_1, q=dist_graph_2) ** 2
         )  # Because the divergence is the square root of the distance
         return float(np.exp(-self.mu * js))
-    
-    def fit(self, train_dataset: Sequence[ProcessedData]):
+
+    def fit(self, train_dataset: Sequence[ProcessedData]) -> None:
         """Fit the kernel to the training dataset by storing the dataset.
 
         Args:
@@ -76,7 +76,7 @@ class QuantumEvolutionKernel:
             raise ValueError("The kernel must be fit to a training dataset before transforming.")
 
         return self._create_kernel_matrix(test_dataset, self.train_dataset)
-    
+
     def fit_transform(self, train_dataset: Sequence[ProcessedData]) -> np.ndarray:
         """Fit the kernel to the training dataset and transform it.
 
@@ -118,7 +118,7 @@ class QuantumEvolutionKernel:
             N = len(dataset1)
             kernel_mat = np.zeros((N, N))
             for i in range(N):
-                for j in range(i + 1, N): 
+                for j in range(i + 1, N):
                     kernel_mat[i, j] = self(dataset1[i], dataset1[j])
                     kernel_mat[j][i] = kernel_mat[i][j]
         else:
