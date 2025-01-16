@@ -102,6 +102,9 @@ class QuantumEvolutionKernel:
         - An N x M kernel matrix between two datasets, where `dataset1` is the test dataset
         and `dataset2` is the training dataset (if both are provided).
 
+        The resulting matrix can be used as a similarity metric for machine learning algorithms,
+        particularly when evaluating the performance on the test dataset using a trained model.
+
         Args:
             dataset1 (Sequence[ProcessedData]): A list of ProcessedData objects representing
                 the first dataset (training or testing).
@@ -110,6 +113,8 @@ class QuantumEvolutionKernel:
 
         Returns:
             np.ndarray: A kernel matrix:
+            where the entry at row i and column j represents the similarity between the graph
+            in position i of the test dataset and the graph in position j of the training set.
                 - Symmetric N x N matrix if only `dataset1` is provided.
                 - N x M matrix if both `dataset1` and `dataset2` are provided.
         """
