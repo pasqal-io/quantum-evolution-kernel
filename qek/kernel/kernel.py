@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 import collections
 from collections.abc import Sequence
 
@@ -11,7 +12,7 @@ from qek.data.dataset import ProcessedData
 
 class QuantumEvolutionKernel:
     def __init__(self, mu: float):
-        self.mu = mu
+        self.params: dict[str, Any] = {"mu": mu}
         self.train_dataset: Sequence[ProcessedData]
         self.kernel_matrix: np.ndarray
 
@@ -51,7 +52,7 @@ class QuantumEvolutionKernel:
         js = (
             jensenshannon(p=dist_graph_1, q=dist_graph_2) ** 2
         )  # Because the divergence is the square root of the distance
-        return float(np.exp(-self.mu * js))
+        return float(np.exp(-self.params["mu"] * js))
 
     def fit(self, train_dataset: Sequence[ProcessedData]) -> None:
         """Fit the kernel to the training dataset by storing the dataset.
@@ -136,6 +137,27 @@ class QuantumEvolutionKernel:
                     kernel_mat[i][j] = self(dataset1[i], dataset2[j])
 
         return kernel_mat
+
+    def set_params(self, **kwargs: dict[str, Any]) -> None:
+        """Set multiple parameters dynamically using setattr
+
+        Args:
+            **kwargs: Arbitrary keyword dictionary where keys are attribute names
+            and values are their respective values
+        """
+        for key, value in kwargs.items():
+            self.params[key] = value
+
+    def get_params(self, deep: bool = True) -> dict:
+        """Retrieve the value of a single parameter by name
+
+        Args:
+            deep (bool): Whether to return parameters of nested objects. Defaults to True.
+
+        Returns
+            dict: A dictionary of parameters and their respective values.
+        """
+        return self.params
 
 
 def count_occupation_from_bitstring(bitstring: str) -> int:
