@@ -13,7 +13,7 @@ from qek.data.dataset import ProcessedData
 class QuantumEvolutionKernel:
     def __init__(self, mu: float):
         self.params: dict[str, Any] = {"mu": mu}
-        self.train_dataset: Sequence[ProcessedData]
+        self.X: Sequence[ProcessedData]
         self.kernel_matrix: np.ndarray
 
     def __call__(
@@ -54,40 +54,43 @@ class QuantumEvolutionKernel:
         )  # Because the divergence is the square root of the distance
         return float(np.exp(-self.params["mu"] * js))
 
-    def fit(self, train_dataset: Sequence[ProcessedData]) -> None:
+    def fit(self, X: Sequence[ProcessedData], y: list = None) -> None:
         """Fit the kernel to the training dataset by storing the dataset.
 
         Args:
-            train_dataset (Sequence[ProcessedData]): The training dataset.
+            X (Sequence[ProcessedData]): The training dataset.
+            y: list: Target variable for the dataset sequence. defaults to None.
         """
-        self.train_dataset = train_dataset
-        self.kernel_matrix = self._create_kernel_matrix(self.train_dataset)
+        self.X = X
+        self.kernel_matrix = self._create_kernel_matrix(self.X)
 
-    def transform(self, test_dataset: Sequence[ProcessedData]) -> np.ndarray:
+    def transform(self, X_test: Sequence[ProcessedData], y_test: list = None) -> np.ndarray:
         """Transform the dataset into the kernel space with respect to the training dataset.
 
         Args:
-            test_dataset (Sequence[ProcessedData]): The dataset to transform.
+            X_test (Sequence[ProcessedData]): The dataset to transform.
+            y_test: list: Target variable for the dataset sequence. defaults to None.
 
         Returns:
             np.ndarray: Kernel matrix where each entry represents the similarity between
                         the given dataset and the training dataset.
         """
-        if self.train_dataset is None:
+        if self.X is None:
             raise ValueError("The kernel must be fit to a training dataset before transforming.")
 
-        return self._create_kernel_matrix(test_dataset, self.train_dataset)
+        return self._create_kernel_matrix(X_test, self.X)
 
-    def fit_transform(self, train_dataset: Sequence[ProcessedData]) -> np.ndarray:
+    def fit_transform(self, X: Sequence[ProcessedData], y: list = None) -> np.ndarray:
         """Fit the kernel to the training dataset and transform it.
 
         Args:
-            train_dataset (Sequence[ProcessedData]): The dataset to fit and transform.
+            X (Sequence[ProcessedData]): The dataset to fit and transform.
+            y: list: Target variable for the dataset sequence. defaults to None.
 
         Returns:
             np.ndarray: Kernel matrix for the training dataset.
         """
-        self.fit(train_dataset)
+        self.fit(X)
         return self.kernel_matrix
 
     def _create_kernel_matrix(
