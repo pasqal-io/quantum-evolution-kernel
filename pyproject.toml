@@ -28,7 +28,6 @@ classifiers = [
 # always specify a version for each package
 # to maintain consistency
 dependencies = [
-  "matplotlib",
   "networkx",
   "numpy",
   "pulser==1.1.1",
@@ -36,7 +35,6 @@ dependencies = [
   "scikit-learn",
   "torch",
   "torch_geometric",
-  "tqdm",
 ]
 
 [tool.hatch.metadata]
@@ -46,6 +44,10 @@ allow-ambiguous-features = true
 [project.optional-dependencies]
 extras = [
   "jupyter",
+  "tqdm",
+  "matplotlib",
+  "plotly",
+  "pandas",
 ]
 
 [project.urls]
