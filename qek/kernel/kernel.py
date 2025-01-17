@@ -62,7 +62,7 @@ class QuantumEvolutionKernel:
             y: list: Target variable for the dataset sequence. defaults to None.
         """
         self.X = X
-        self.kernel_matrix = self._create_kernel_matrix(self.X)
+        self.kernel_matrix = self.create_train_kernel_matrix(self.X)
 
     def transform(self, X_test: Sequence[ProcessedData], y_test: list = None) -> np.ndarray:
         """Transform the dataset into the kernel space with respect to the training dataset.
@@ -78,7 +78,7 @@ class QuantumEvolutionKernel:
         if self.X is None:
             raise ValueError("The kernel must be fit to a training dataset before transforming.")
 
-        return self._create_kernel_matrix(X_test, self.X)
+        return self.create_test_kernel_matrix(X_test, self.X)
 
     def fit_transform(self, X: Sequence[ProcessedData], y: list = None) -> np.ndarray:
         """Fit the kernel to the training dataset and transform it.
@@ -93,52 +93,55 @@ class QuantumEvolutionKernel:
         self.fit(X)
         return self.kernel_matrix
 
-    def _create_kernel_matrix(
+    def create_train_kernel_matrix(self, train_dataset: Sequence[ProcessedData]) -> np.ndarray:
+        """Compute a kernel matrix for a given training dataset.
+
+        This method computes a symmetric N x N kernel matrix from the Jensen-Shannon
+        divergences between all pairs of graphs in the input dataset. The resulting matrix
+        can be used as a similarity metric for machine learning algorithms.
+        Args:
+            train_dataset (Sequence[ProcessedData]): A list of ProcessedData objects to compute
+            the kernel matrix from.
+        Returns:
+            np.ndarray: An N x N symmetric matrix where the entry at row i and column j represents
+            the similarity between the graphs in positions i and j of the input dataset.
+        """
+        N = len(train_dataset)
+        kernel_mat = np.zeros((N, N))
+        for i in range(N):
+            for j in range(i + 1, N):
+                kernel_mat[i][j] = self(train_dataset[i], train_dataset[j])
+                kernel_mat[j][i] = kernel_mat[i][j]
+        return kernel_mat
+
+    def create_test_kernel_matrix(
         self,
-        dataset1: Sequence[ProcessedData],
-        dataset2: Sequence[ProcessedData] | None = None,
+        test_dataset: Sequence[ProcessedData],
+        train_dataset: Sequence[ProcessedData],
     ) -> np.ndarray:
-        """Compute a kernel matrix for a given dataset or between two datasets.
+        """Compute a kernel matrix for a given testing dataset and training set.
 
-        This method computes either:
-        - A symmetric N x N kernel matrix from the Jensen-Shannon divergences between
-        all pairs of graphs in a single input dataset (if only `dataset1` is provided).
-        - An N x M kernel matrix between two datasets, where `dataset1` is the test dataset
-        and `dataset2` is the training dataset (if both are provided).
-
+        This method computes an N x M kernel matrix from the Jensen-Shannon
+        divergences between all pairs of graphs in the input testing dataset
+        and the training dataset.
         The resulting matrix can be used as a similarity metric for machine learning algorithms,
         particularly when evaluating the performance on the test dataset using a trained model.
-
         Args:
-            dataset1 (Sequence[ProcessedData]): A list of ProcessedData objects representing
-                the first dataset (training or testing).
-            dataset2 (Sequence[ProcessedData], optional): A list of ProcessedData objects
-                representing the second dataset (training set). Defaults to None.
-
+            test_dataset (Sequence[ProcessedData]): A list of ProcessedData
+            objects representing the testing dataset.
+            train_dataset (Sequence[ProcessedData]): A list of ProcessedData
+            objects representing the training set.
         Returns:
-            np.ndarray: A kernel matrix:
-            where the entry at row i and column j represents the similarity between the graph
-            in position i of the test dataset and the graph in position j of the training set.
-                - Symmetric N x N matrix if only `dataset1` is provided.
-                - N x M matrix if both `dataset1` and `dataset2` are provided.
+            np.ndarray: An M x N matrix where the entry at row i and column j represents
+            the similarity between the graph in position i of the test dataset
+            and the graph in position j of the training set.
         """
-        if dataset2 is None:
-            # Symmetric kernel matrix for one dataset (train dataset)
-            N = len(dataset1)
-            kernel_mat = np.zeros((N, N))
-            for i in range(N):
-                for j in range(i + 1, N):
-                    kernel_mat[i, j] = self(dataset1[i], dataset1[j])
-                    kernel_mat[j][i] = kernel_mat[i][j]
-        else:
-            # Asymmetric kernel matrix between dataset1 and dataset2
-            N_test = len(dataset1)
-            N_train = len(dataset2)
-            kernel_mat = np.zeros((N_test, N_train))
-            for i in range(N_test):
-                for j in range(N_train):
-                    kernel_mat[i][j] = self(dataset1[i], dataset2[j])
-
+        N_train = len(train_dataset)
+        N_test = len(test_dataset)
+        kernel_mat = np.zeros((N_test, N_train))
+        for i in range(N_test):
+            for j in range(N_train):
+                kernel_mat[i][j] = self(test_dataset[i], train_dataset[j])
         return kernel_mat
 
     def set_params(self, **kwargs: dict[str, Any]) -> None:
