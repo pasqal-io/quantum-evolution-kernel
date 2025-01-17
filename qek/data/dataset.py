@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import collections
 import json
+import matplotlib
 
 import numpy as np
-import plotly.express as px
 import pulser as pl
 
 
@@ -94,7 +94,8 @@ class ProcessedData:
         """
         Draw an histogram for the excitation level on screen
         """
-        px.histogram(self._dist_excitation, orientation="h").show()
+        x = [str(i) for i in range(len(self._dist_excitation))]
+        matplotlib.pyplot.bar(x, self._dist_excitation)
 
 
 def dist_excitation(state_dict: dict[str, int], size_max: int | None = None) -> np.ndarray:

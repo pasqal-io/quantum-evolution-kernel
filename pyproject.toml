@@ -35,6 +35,7 @@ dependencies = [
   "scikit-learn",
   "torch",
   "torch_geometric",
+  "matplotlib",
 ]
 
 [tool.hatch.metadata]
@@ -45,9 +46,6 @@ allow-ambiguous-features = true
 extras = [
   "jupyter",
   "tqdm",
-  "matplotlib",
-  "plotly",
-  "pandas",
 ]
 
 [project.urls]
