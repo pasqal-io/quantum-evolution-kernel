@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 import collections
+import copy
 from collections.abc import Sequence
 
 import numpy as np
@@ -155,7 +156,12 @@ class QuantumEvolutionKernel:
             self.params[key] = value
 
     def get_params(self, deep: bool = True) -> dict:
-        """Retrieve the value of a single parameter by name
+        """Retrieve the value of a single parameter by name.
+
+        Note: The `deep` parameter standardizes the `get_params` function to ensure 
+        compatibility with various machine learning libraries, such as scikit-learn. 
+        This allows the QuantumEvolutionKernel to seamlessly integrate into 
+        scikit-learn workflows as a kernel.
 
         Args:
             deep (bool): Whether to return parameters of nested objects. Defaults to True.
@@ -163,7 +169,8 @@ class QuantumEvolutionKernel:
         Returns
             dict: A dictionary of parameters and their respective values.
         """
-        return self.params
+        return copy.deepcopy(self.params)
+        
 
 
 def count_occupation_from_bitstring(bitstring: str) -> int:
