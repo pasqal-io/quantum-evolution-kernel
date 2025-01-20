@@ -37,7 +37,7 @@ dependencies = [
   "torch",
   "torch_geometric",
   "matplotlib",
-  "emu-mps",
+  "emu-mps~=1.2.0",
 ]
 
 [tool.hatch.metadata]

@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass
 import logging
-from typing import Any, Final, Generic, Tuple, TypeVar
+from typing import Any, Final, Generic, TypeVar
 
 import networkx as nx
 import numpy as np
@@ -36,14 +36,16 @@ class BaseGraph:
 
     device: Final[pl.devices.Device]
 
-    def __init__(self, id: Any, data: pyg_data.Data, device: pl.devices.Device):
+    def __init__(
+        self, id: int, data: pyg_data.Data, device: pl.devices.Device, target: int | None = None
+    ):
         """
         Create a graph from geometric data.
 
         Args:
             id: An identifier for this graph, used mostly for error messages.
             data:  A homogeneous graph, in PyTorch Geometric format. Unchanged.
-                It MUST have attributes 'pos' and 'y'.
+                It MUST have attributes 'pos'.
             device: The device for which the graph is prepared.
         """
         if not hasattr(data, "pos"):
@@ -62,15 +64,7 @@ class BaseGraph:
             edge_attrs=["edge_attr"] if data.edge_attr is not None else None,
             to_undirected=True,
         )
-
-        y = data.y
-        if y is None:
-            raise AttributeError("The graph should have an attribute 'y'.")
-
-        if isinstance(y, torch.Tensor):
-            y = y.item()
-
-        self.target: int = int(y)
+        self.target = target
         self.id = id
 
     def is_disk_graph(self, radius: float) -> bool:
@@ -237,6 +231,90 @@ class MoleculeGraph(BaseGraph):
     quantum device.
     """
 
+    def __init__(
+        self,
+        id: Any,
+        data: pyg_data.Data,
+        device: pl.devices.Device,
+        node_mapping: dict[int, str],
+        edge_mapping: dict[int, Chem.BondType],
+        target: int | None = None,
+    ):
+        """
+        Compute the geometry for a molecule graph.
+
+        Args:
+            data:  A homogeneous graph, in PyTorch Geometric format. Unchanged.
+            blockade_radius: The radius of the Rydberg Blockade. Two
+                connected nodes should be at a distance < blockade_radius,
+                while two disconnected nodes should be at a
+                distance > blockade_radius.
+            node_mapping: A mapping of node labels from numbers to strings,
+                e.g. `5 => "Cl"`. Used when building molecules, e.g. to compute
+                distances between nodes.
+            edge_mapping: A mapping of edge labels from number to chemical
+                bond types, e.g. `2 => DOUBLE`. Used when building molecules,
+                e.g. to compute distances between nodes.
+            target: If specified, a target for machine learning, as a value
+                `0` or `1`.
+        """
+        pyg = data.clone()
+        pyg.pos = None  # Placeholder
+        super().__init__(id=id, data=pyg, device=device, target=target)
+
+        # Reconstruct the molecule.
+        tmp_mol = graph_to_mol(
+            graph=self.nx_graph,
+            node_mapping=node_mapping,
+            edge_mapping=edge_mapping,
+        )
+
+        # Extract the geometry.
+        AllChem.Compute2DCoords(tmp_mol, useRingTemplates=True)
+        original_pos = tmp_mol.GetConformer().GetPositions()[..., :2]  # Convert to 2D
+
+        # We now want to scale the geometry so that the smallest edge
+        # is as long as `device.min_atom_distance`.
+        pos = original_pos
+        pairs: list[tuple[Any, Any]] = []
+        for start, end in self.nx_graph.edges():
+            pairs.append((start, end))
+        for start, end in nx.non_edges(self.nx_graph):
+            pairs.append((start, end))
+
+        distances = []
+        for start, end in pairs:
+            distances.append(np.linalg.norm(pos[start] - pos[end]))
+        min_distance = np.min(distances)
+        pos = pos * device.min_atom_distance / min_distance
+
+        # The above transformation is sensitive to rouding errors, so if we realize that
+        # we accidentally made the smallest edge too small, we'll multiply by a small factor.
+        while True:
+            distances = []
+            for start, end in pairs:
+                distances.append(np.linalg.norm(pos[start] - pos[end]))
+            min_distance = np.min(distances)
+            if min_distance >= device.min_atom_distance:
+                logger.debug(
+                    "The minimal distance in graph #%s exceeds min atom distance: %s > %s, it should now be compilable",
+                    self.id,
+                    min_distance,
+                    device.min_atom_distance,
+                )
+                break
+            pos = pos * EPSILON_RESCALE_FACTOR
+
+        # Finally, store the position.
+        self.pyg.pos = pos
+
+
+class PTCFMGraph(MoleculeGraph):
+    """
+    An ingester for molecule graphs using
+    PTC-FM dataset conventions.
+    """
+
     # Constants used to decode the PTC-FM dataset, mapping
     # integers (used as node attributes) to atom names.
     PTCFM_ATOM_NAMES: Final[dict[int, str]] = {
@@ -274,8 +352,6 @@ class MoleculeGraph(BaseGraph):
         id: Any,
         data: pyg_data.Data,
         device: pl.devices.Device,
-        node_mapping: dict[int, str] = PTCFM_ATOM_NAMES,
-        edge_mapping: dict[int, Chem.BondType] = PTCFM_BOND_TYPES,
     ):
         """
         Compute the geometry for a molecule graph.
@@ -292,56 +368,25 @@ class MoleculeGraph(BaseGraph):
             edge_mapping: A mapping of edge labels from number to chemical
                 bond types, e.g. `2 => DOUBLE`. Used when building molecules,
                 e.g. to compute distances between nodes.
+            target: If specified, a target for machine learning, as a value
+                `0` or `1`.
         """
-        pyg = data.clone()
-        pyg.pos = None  # Placeholder
-        super().__init__(id=id, data=pyg, device=device)
+        target = data.y
+        if target is None:
+            raise AttributeError("The graph should have an attribute 'y'.")
 
-        # Reconstruct the molecule.
-        tmp_mol = graph_to_mol(
-            graph=self.nx_graph,
-            node_mapping=node_mapping,
-            edge_mapping=edge_mapping,
+        if isinstance(target, torch.Tensor):
+            target = target.item()
+        target = int(target)
+
+        super().__init__(
+            id=id,
+            data=data,
+            device=device,
+            node_mapping=PTCFMGraph.PTCFM_ATOM_NAMES,
+            edge_mapping=PTCFMGraph.PTCFM_BOND_TYPES,
+            target=target,
         )
-
-        # Extract the geometry.
-        AllChem.Compute2DCoords(tmp_mol, useRingTemplates=True)
-        original_pos = tmp_mol.GetConformer().GetPositions()[..., :2]  # Convert to 2D
-
-        # We now want to scale the geometry so that the smallest edge
-        # is as long as `device.min_atom_distance`.
-        pos = original_pos
-        pairs: list[Tuple[Any, Any]] = []
-        for start, end in self.nx_graph.edges():
-            pairs.append((start, end))
-        for start, end in nx.non_edges(self.nx_graph):
-            pairs.append((start, end))
-
-        distances = []
-        for start, end in pairs:
-            distances.append(np.linalg.norm(pos[start] - pos[end]))
-        min_distance = np.min(distances)
-        pos = pos * device.min_atom_distance / min_distance
-
-        # The above transformation is sensitive to rouding errors, so if we realize that
-        # we accidentally made the smallest edge too small, we'll multiply by a small factor.
-        while True:
-            distances = []
-            for start, end in pairs:
-                distances.append(np.linalg.norm(pos[start] - pos[end]))
-            min_distance = np.min(distances)
-            if min_distance >= device.min_atom_distance:
-                logger.debug(
-                    "The minimal distance in graph #%s exceeds min atom distance: %s > %s, it should now be compilable",
-                    self.id,
-                    min_distance,
-                    device.min_atom_distance,
-                )
-                break
-            pos = pos * EPSILON_RESCALE_FACTOR
-
-        # Finally, store the position.
-        self.pyg.pos = pos
 
 
 GraphType = TypeVar("GraphType")
@@ -369,9 +414,9 @@ class PygWithPosCompiler(BaseGraphCompiler[pyg_data.Data]):
         Compile a Pulser sequence from a torch_geometric graph with position.
 
         Args:
-            graph: A graph with positions (specified as attribute `pos`) and a
-                prediction target (specified as attribute `y`, which must be an
-                `int`). The graph will not be changed.
+            graph: A graph with positions (specified as attribute `pos`) and
+                optionally a prediction target (specified as attribute `y`, which
+                must be an `int`). The graph will not be changed.
             device: The device for which the sequence must be compiled.
             id: A unique identifier for the graph, used mostly for logging
                 and displaying error messages.
@@ -379,24 +424,23 @@ class PygWithPosCompiler(BaseGraphCompiler[pyg_data.Data]):
         return BaseGraph(id=id, data=graph, device=device)
 
 
-class MoleculeGraphCompiler(BaseGraphCompiler[pyg_data.Data]):
+class MoleculeGraphCompiler(BaseGraphCompiler[tuple[pyg_data.Data, int | None]]):
     """
-    A compiler able to ingest torch_geometric molecules.
+    A compiler able to ingest torch_geometric molecules with a target.
     """
 
     def __init__(
         self,
-        node_mapping: dict[int, str] = MoleculeGraph.PTCFM_ATOM_NAMES,
-        edge_mapping: dict[int, Chem.BondType] = MoleculeGraph.PTCFM_BOND_TYPES,
+        node_mapping: dict[int, str],
+        edge_mapping: dict[int, Chem.BondType],
     ):
         """
         Setup a molecule graph compiler.
 
         Args:
             node_mapping: A mapping from node labels (as integers) to atom names (e.g. "C", "Ar", ...).
-                By default, use the conventions employed in the PTCFM dataset.
             edge_mapping: A mapping from node labels (as integers) to chemical bond types (e.g. simple
-                bound, double bound). By default, use the conventions employed in the PTCFM dataset.
+                bound, double bound).
         """
         self.node_mapping = node_mapping
         self.edge_mapping = edge_mapping
@@ -412,20 +456,31 @@ class MoleculeGraphCompiler(BaseGraphCompiler[pyg_data.Data]):
                 with `self.node_mapping`
              - `int` labels on edges, which may be converted into chemical
                 bounds with `self.edge_mapping`
-             - `int` attribute `y`, which will be used as a prediction target.
             The graph will not be changed.
         device: The device for which the sequence must be compiled.
         id: A unique identifier for the graph, used mostly for logging
             and displaying error messages.
     """
 
-    def ingest(self, graph: pyg_data.Data, device: pl.devices.Device, id: int) -> BaseGraph:
+    def ingest(
+        self, graph: tuple[pyg_data.Data, int | None], device: pl.devices.Device, id: int
+    ) -> MoleculeGraph:
         return MoleculeGraph(
             id=id,
-            data=graph,
+            data=graph[0],
             device=device,
             node_mapping=self.node_mapping,
             edge_mapping=self.edge_mapping,
+            target=graph[1],
+        )
+
+
+class PTCFMCompiler(BaseGraphCompiler[pyg_data.Data]):
+    def ingest(self, graph: pyg_data.Data, device: pl.devices.Device, id: int) -> PTCFMGraph:
+        return PTCFMGraph(
+            id=id,
+            data=graph,
+            device=device,
         )
 
 
@@ -441,7 +496,7 @@ class NXWithPos:
     positions: dict[Any, np.ndarray]
 
     # A machine learning target
-    target: int
+    target: int | None
 
 
 class NXGraphCompiler(BaseGraphCompiler[NXWithPos]):

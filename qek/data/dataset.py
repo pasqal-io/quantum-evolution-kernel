@@ -1,6 +1,6 @@
 import collections
 import json
-from typing import cast
+from typing import Final, cast
 import matplotlib
 
 import logging
@@ -21,8 +21,8 @@ class ProcessedData:
             executed on the device.
         state_dict: A dictionary {bitstring: number of instances}
             for this graph.
-        target: The machine-learning target (in this case, a value
-            in {0, 1}, as specified by the original graph).
+        target: If specified, the machine-learning target, as a
+            value `0` or `1`.
 
     The state dictionary represents an approximation of the quantum
     state of the device for this graph after completion of the
@@ -40,14 +40,24 @@ class ProcessedData:
     specific graph).
     """
 
-    sequence: pl.Sequence
-    state_dict: dict[str, int]
-    _dist_excitation: np.ndarray
-    target: int
+    sequence: Final[pl.Sequence]
+    state_dict: Final[dict[str, int]]
+    _dist_excitation: Final[np.ndarray]
+    target: Final[int | None]
 
-    def __init__(self, sequence: pl.Sequence, state_dict: dict[str, np.int64], target: int):
+    def __init__(
+        self, sequence: pl.Sequence, state_dict: dict[str, int | np.int64], target: int | None
+    ):
         self.sequence = sequence
-        self.state_dict = _convert_np_int64_to_int(data=state_dict)
+        # Some emulators will actually be `dict[str, int64]` instead of `dict[str, int]` and `int64`
+        # is not JSON-serializable.
+        #
+        # The reason for which `int64` is not JSON-serializable is that JSON limits ints to 2^53-1.
+        # In practice, this should not be a problem, since the `int`/`int64` in our dict is
+        # limited to the number of runs, and we don't expect to be launching 2^53 consecutive runs
+        # for a single sequence on a device in any foreseeable future (assuming a run of 1ns,
+        # this would still take ~4 billion years to execute).
+        self.state_dict = {k: int(value) for k, value in state_dict.items()}
         self._dist_excitation = dist_excitation(self.state_dict)
         self.target = target
 
@@ -154,16 +164,6 @@ def dist_excitation(state_dict: dict[str, int], size: int | None = None) -> np.n
             result[occupation] = count / total
 
     return result
-
-
-def _convert_np_int64_to_int(data: dict[str, np.int64]) -> dict[str, int]:
-    """
-    Utility function: convert the values of a dict from `np.int64` to `int`,
-    for serialization purposes.
-    """
-    return {
-        key: (int(value) if isinstance(value, np.integer) else value) for key, value in data.items()
-    }
 
 
 def save_dataset(dataset: list[ProcessedData], file_path: str) -> None:
