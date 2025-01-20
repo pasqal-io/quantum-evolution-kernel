@@ -158,9 +158,9 @@ class QuantumEvolutionKernel:
     def get_params(self, deep: bool = True) -> dict:
         """Retrieve the value of a single parameter by name.
 
-        Note: The `deep` parameter standardizes the `get_params` function to ensure 
-        compatibility with various machine learning libraries, such as scikit-learn. 
-        This allows the QuantumEvolutionKernel to seamlessly integrate into 
+        Note: The `deep` parameter standardizes the `get_params` function to ensure
+        compatibility with various machine learning libraries, such as scikit-learn.
+        This allows the QuantumEvolutionKernel to seamlessly integrate into
         scikit-learn workflows as a kernel.
 
         Args:
@@ -170,7 +170,6 @@ class QuantumEvolutionKernel:
             dict: A dictionary of parameters and their respective values.
         """
         return copy.deepcopy(self.params)
-        
 
 
 def count_occupation_from_bitstring(bitstring: str) -> int:
