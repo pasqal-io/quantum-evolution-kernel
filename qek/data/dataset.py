@@ -1,11 +1,13 @@
-from __future__ import annotations
-
 import collections
 import json
+from typing import cast
 import matplotlib
 
+import logging
 import numpy as np
 import pulser as pl
+
+logger = logging.getLogger(__name__)
 
 
 class ProcessedData:
@@ -17,7 +19,8 @@ class ProcessedData:
             executed on the device.
         state_dict: A dictionary {bitstring: number of instances}
             for this graph.
-        target: The target, i.e. the identifier of the graph.
+        target: The machine-learning target (in this case, a value
+            in {0, 1}, as specified by the original graph).
 
     The state dictionary represents an approximation of the quantum
     state of the device for this graph after completion of the
@@ -89,7 +92,9 @@ class ProcessedData:
         """
         Draw the register on screen
         """
-        self.sequence.register.draw(blockade_radius=self.sequence.device.min_atom_distance + 0.01)
+        cast(pl.Register, self.sequence.register).draw(
+            blockade_radius=self.sequence.device.min_atom_distance + 0.01
+        )
 
     def draw_excitation(self) -> None:
         """

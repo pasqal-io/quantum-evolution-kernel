@@ -83,7 +83,7 @@ class QuantumEvolutionKernel:
         )  # Because the divergence is the square root of the distance
         return float(np.exp(-self.params["mu"] * js))
 
-    def fit(self, X: Sequence[ProcessedData], y: list = None) -> None:
+    def fit(self, X: Sequence[ProcessedData], y: list | None = None) -> None:
         """Fit the kernel to the training dataset by storing the dataset.
 
         Args:
@@ -93,7 +93,7 @@ class QuantumEvolutionKernel:
         self.X = X
         self.kernel_matrix = self.create_train_kernel_matrix(self.X)
 
-    def transform(self, X_test: Sequence[ProcessedData], y_test: list = None) -> np.ndarray:
+    def transform(self, X_test: Sequence[ProcessedData], y_test: list | None = None) -> np.ndarray:
         """Transform the dataset into the kernel space with respect to the training dataset.
 
         Args:
@@ -109,7 +109,7 @@ class QuantumEvolutionKernel:
 
         return self.create_test_kernel_matrix(X_test, self.X)
 
-    def fit_transform(self, X: Sequence[ProcessedData], y: list = None) -> np.ndarray:
+    def fit_transform(self, X: Sequence[ProcessedData], y: list | None = None) -> np.ndarray:
         """Fit the kernel to the training dataset and transform it.
 
         Args:
