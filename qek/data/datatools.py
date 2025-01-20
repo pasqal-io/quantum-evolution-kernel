@@ -205,6 +205,7 @@ class BaseGraph:
 
         # Check the distance from the center
         pos = self.pyg.pos
+        assert type(pos) is torch.Tensor
         distance_from_center = np.linalg.norm(pos, ord=2, axis=-1)
         if any(distance_from_center > self.device.max_radial_distance):
             return False

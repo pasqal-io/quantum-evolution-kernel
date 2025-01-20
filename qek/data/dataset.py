@@ -65,18 +65,19 @@ class ProcessedData:
                 target=tmp_data["target"],
             )
 
-    def dist_excitation(self, width: int | None = None) -> np.ndarray:
+    def dist_excitation(self, size: int | None = None) -> np.ndarray:
         """
         Return the distribution of excitations for this graph.
 
         Arguments:
-            width: If specified, truncate or extend the result to this width.
+            size: If specified, truncate or pad the array to this
+                size.
         """
-        if width is None or width == len(self._dist_excitation):
+        if size is None or size == len(self._dist_excitation):
             return self._dist_excitation.copy()
-        if width < len(self._dist_excitation):
-            return np.resize(self._dist_excitation, width)
-        return np.pad(self._dist_excitation, (0, width - len(self._dist_excitation)))
+        if size < len(self._dist_excitation):
+            return np.resize(self._dist_excitation, size)
+        return np.pad(self._dist_excitation, (0, size - len(self._dist_excitation)))
 
     def draw_sequence(self) -> None:
         """
@@ -98,13 +99,13 @@ class ProcessedData:
         matplotlib.pyplot.bar(x, self._dist_excitation)
 
 
-def dist_excitation(state_dict: dict[str, int], size_max: int | None = None) -> np.ndarray:
+def dist_excitation(state_dict: dict[str, int], size: int | None = None) -> np.ndarray:
     """
     Calculates the distribution of excitation energies from a dictionary of
     bitstrings to their respective counts.
 
     Args:
-        size_max (int | None): If specified, only keep `size_max` energy
+        size (int | None): If specified, only keep `size` energy
             distributions in the output. Otherwise, keep all values.
 
     Returns:
@@ -115,9 +116,9 @@ def dist_excitation(state_dict: dict[str, int], size_max: int | None = None) -> 
     """
 
     if len(state_dict) == 0:
-        return np.ndarray()
+        return np.ndarray(0)
 
-    if size_max is None:
+    if size is None:
         # If size is not specified, it's the length of bitstrings.
         # We assume that all bitstrings in `count_bitstring` have the
         # same length and we have just checked that it's not empty.
@@ -125,10 +126,10 @@ def dist_excitation(state_dict: dict[str, int], size_max: int | None = None) -> 
         # Pick the length of the first bitstring.
         # We have already checked that `count_bitstring` is not empty.
         bitstring = next(iter(state_dict.keys()))
-        size_max = len(bitstring)
+        size = len(bitstring)
 
-    # Make mypy realize that `size_max` is now always an `int`.
-    assert type(size_max) is int
+    # Make mypy realize that `size` is now always an `int`.
+    assert type(size) is int
 
     count_occupation: dict[int, int] = collections.defaultdict(int)
     total = 0.0
@@ -137,9 +138,9 @@ def dist_excitation(state_dict: dict[str, int], size_max: int | None = None) -> 
         count_occupation[occupation] += number
         total += number
 
-    result = np.zeros(size_max + 1, dtype=float)
+    result = np.zeros(size + 1, dtype=float)
     for occupation, count in count_occupation.items():
-        if occupation < size_max:
+        if occupation < size:
             result[occupation] = count / total
 
     return result
