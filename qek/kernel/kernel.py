@@ -156,15 +156,11 @@ class QuantumEvolutionKernel:
             self.params[key] = value
 
     def get_params(self, deep: bool = True) -> dict:
-        """Retrieve the value of a single parameter by name.
+        """Retrieve the value of all parameters.
 
-        Note: The `deep` parameter standardizes the `get_params` function to ensure
-        compatibility with various machine learning libraries, such as scikit-learn.
-        This allows the QuantumEvolutionKernel to seamlessly integrate into
-        scikit-learn workflows as a kernel.
-
-        Args:
-            deep (bool): Whether to return parameters of nested objects. Defaults to True.
+         Args:
+            deep (bool): Ignored. Added for compatibility with various machine learning libraries,
+                such as scikit-learn.
 
         Returns
             dict: A dictionary of parameters and their respective values.
