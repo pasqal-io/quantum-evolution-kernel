@@ -157,8 +157,10 @@ class BaseGraph:
         if len(self.nx_graph) == 0 or not nx.is_connected(self.nx_graph):
             return False
 
-        # Check the distances between all pairs of nodes.
         pos = self.pyg.pos
+        assert pos is not None
+
+        # Check the distances between all pairs of nodes.
         for u, v in nx.non_edges(self.nx_graph):
             distance_um = np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
             if distance_um <= radius:
@@ -204,8 +206,9 @@ class BaseGraph:
             return False
 
         # Check the distance from the center
+
         pos = self.pyg.pos
-        assert type(pos) is torch.Tensor
+        assert pos is not None
         distance_from_center = np.linalg.norm(pos, ord=2, axis=-1)
         if any(distance_from_center > self.device.max_radial_distance):
             return False
@@ -229,7 +232,9 @@ class BaseGraph:
         Returns:
             pulser.Register: register
         """
-        return pl.Register.from_coordinates(coords=self.pyg.pos)
+        pos = self.pyg.pos
+        assert pos is not None
+        return pl.Register.from_coordinates(coords=pos)
 
     def compute_sequence(self) -> pl.Sequence:
         """
