@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from typing import Any
 import collections
+import copy
 from collections.abc import Sequence
 
 import numpy as np
@@ -10,8 +12,25 @@ from qek.data.dataset import ProcessedData
 
 
 class QuantumEvolutionKernel:
+    """QuantumEvolutionKernel class.
+
+    Attributes:
+    - params (dict): Dictionary of training parameters.
+    - X (Sequence[ProcessedData]): Training data used for fitting the kernel
+    - kernel_matrix (np.ndarray): Kernel matrix. This is assigned in the `fit()` method
+
+
+    """
+
     def __init__(self, mu: float):
-        self.mu = mu
+        """Initialize the QuantumEvolutionKernel.
+
+        Args:
+            mu (float): Scaling factor for the Jensen-Shannon divergence
+        """
+        self.params: dict[str, Any] = {"mu": mu}
+        self.X: Sequence[ProcessedData]
+        self.kernel_matrix: np.ndarray
 
     def __call__(
         self, graph_1: ProcessedData, graph_2: ProcessedData, size_max: int = 100
@@ -49,7 +68,46 @@ class QuantumEvolutionKernel:
         js = (
             jensenshannon(p=dist_graph_1, q=dist_graph_2) ** 2
         )  # Because the divergence is the square root of the distance
-        return float(np.exp(-self.mu * js))
+        return float(np.exp(-self.params["mu"] * js))
+
+    def fit(self, X: Sequence[ProcessedData], y: list = None) -> None:
+        """Fit the kernel to the training dataset by storing the dataset.
+
+        Args:
+            X (Sequence[ProcessedData]): The training dataset.
+            y: list: Target variable for the dataset sequence. defaults to None.
+        """
+        self.X = X
+        self.kernel_matrix = self.create_train_kernel_matrix(self.X)
+
+    def transform(self, X_test: Sequence[ProcessedData], y_test: list = None) -> np.ndarray:
+        """Transform the dataset into the kernel space with respect to the training dataset.
+
+        Args:
+            X_test (Sequence[ProcessedData]): The dataset to transform.
+            y_test: list: Target variable for the dataset sequence. defaults to None.
+
+        Returns:
+            np.ndarray: Kernel matrix where each entry represents the similarity between
+                        the given dataset and the training dataset.
+        """
+        if self.X is None:
+            raise ValueError("The kernel must be fit to a training dataset before transforming.")
+
+        return self.create_test_kernel_matrix(X_test, self.X)
+
+    def fit_transform(self, X: Sequence[ProcessedData], y: list = None) -> np.ndarray:
+        """Fit the kernel to the training dataset and transform it.
+
+        Args:
+            X (Sequence[ProcessedData]): The dataset to fit and transform.
+            y: list: Target variable for the dataset sequence. defaults to None.
+
+        Returns:
+            np.ndarray: Kernel matrix for the training dataset.
+        """
+        self.fit(X)
+        return self.kernel_matrix
 
     def create_train_kernel_matrix(self, train_dataset: Sequence[ProcessedData]) -> np.ndarray:
         """Compute a kernel matrix for a given training dataset.
@@ -101,6 +159,28 @@ class QuantumEvolutionKernel:
             for j in range(N_train):
                 kernel_mat[i][j] = self(test_dataset[i], train_dataset[j])
         return kernel_mat
+
+    def set_params(self, **kwargs: dict[str, Any]) -> None:
+        """Set multiple parameters for the kernel.
+
+        Args:
+            **kwargs: Arbitrary keyword dictionary where keys are attribute names
+            and values are their respective values
+        """
+        for key, value in kwargs.items():
+            self.params[key] = value
+
+    def get_params(self, deep: bool = True) -> dict:
+        """Retrieve the value of all parameters.
+
+         Args:
+            deep (bool): Ignored. Added for compatibility with various machine learning libraries,
+                such as scikit-learn.
+
+        Returns
+            dict: A dictionary of parameters and their respective values.
+        """
+        return copy.deepcopy(self.params)
 
 
 def count_occupation_from_bitstring(bitstring: str) -> int:
