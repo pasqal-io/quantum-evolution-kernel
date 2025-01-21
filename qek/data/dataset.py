@@ -154,3 +154,56 @@ def _convert_np_int64_to_int(data: dict[str, np.int64]) -> dict[str, int]:
     return {
         key: (int(value) if isinstance(value, np.integer) else value) for key, value in data.items()
     }
+
+
+def save_dataset(dataset: list[ProcessedData], file_path: str) -> None:
+    """Saves a dataset to a JSON file.
+
+    Args:
+        dataset (list[ProcessedData]): The dataset to be saved, containing
+            RegisterData instances.
+        file_path (str): The path where the dataset will be saved as a JSON
+            file.
+
+    Note:
+        The data is stored in a format suitable for loading with load_dataset.
+
+    Returns:
+        None
+    """
+    with open(file_path, "w") as file:
+        data = [
+            {
+                "sequence": instance.sequence.to_abstract_repr(),
+                "state_dict": instance.state_dict,
+                "target": instance.target,
+            }
+            for instance in dataset
+        ]
+        json.dump(data, file)
+
+
+def load_dataset(file_path: str) -> list[ProcessedData]:
+    """Loads a dataset from a JSON file.
+
+    Args:
+        file_path (str): The path to the JSON file containing the dataset.
+
+    Note:
+        The data is loaded in the format that was used when saving with
+            save_dataset.
+
+    Returns:
+        A list of ProcessedData instances, corresponding to the data stored in
+            the JSON file.
+    """
+    with open(file_path) as file:
+        data = json.load(file)
+        return [
+            ProcessedData(
+                sequence=pl.Sequence.from_abstract_repr(item["sequence"]),
+                state_dict=item["state_dict"],
+                target=item["target"],
+            )
+            for item in data
+        ]

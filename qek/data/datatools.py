@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Final
 
 import networkx as nx
@@ -13,7 +12,6 @@ import torch_geometric.data as pyg_data
 import torch_geometric.utils as pyg_utils
 from rdkit.Chem import AllChem
 
-from qek.data.dataset import ProcessedData
 from qek.utils import graph_to_mol
 
 
@@ -42,59 +40,6 @@ def split_train_test(
         generator = torch.Generator()
     train, val = torch_data.random_split(dataset=dataset, lengths=lengths, generator=generator)
     return train, val
-
-
-def save_dataset(dataset: list[ProcessedData], file_path: str) -> None:
-    """Saves a dataset to a JSON file.
-
-    Args:
-        dataset (list[ProcessedData]): The dataset to be saved, containing
-            RegisterData instances.
-        file_path (str): The path where the dataset will be saved as a JSON
-            file.
-
-    Note:
-        The data is stored in a format suitable for loading with load_dataset.
-
-    Returns:
-        None
-    """
-    with open(file_path, "w") as file:
-        data = [
-            {
-                "sequence": instance.sequence.to_abstract_repr(),
-                "state_dict": instance.state_dict,
-                "target": instance.target,
-            }
-            for instance in dataset
-        ]
-        json.dump(data, file)
-
-
-def load_dataset(file_path: str) -> list[ProcessedData]:
-    """Loads a dataset from a JSON file.
-
-    Args:
-        file_path (str): The path to the JSON file containing the dataset.
-
-    Note:
-        The data is loaded in the format that was used when saving with
-            save_dataset.
-
-    Returns:
-        A list of ProcessedData instances, corresponding to the data stored in
-            the JSON file.
-    """
-    with open(file_path) as file:
-        data = json.load(file)
-        return [
-            ProcessedData(
-                sequence=pl.Sequence.from_abstract_repr(item["sequence"]),
-                state_dict=item["state_dict"],
-                target=item["target"],
-            )
-            for item in data
-        ]
 
 
 EPSILON_DISTANCE_UM = 0.01
