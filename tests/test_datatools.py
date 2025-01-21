@@ -144,6 +144,7 @@ def test_is_disk_graph_true() -> None:
         Data(
             x=torch.tensor([0], dtype=torch.float),
             edge_index=torch.tensor([]),
+            pos=torch.tensor([], dtype=torch.float),
         ),
         device=pulser.AnalogDevice,
     )
