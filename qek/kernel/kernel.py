@@ -12,7 +12,22 @@ from qek.data.dataset import ProcessedData
 
 
 class QuantumEvolutionKernel:
+    """QuantumEvolutionKernel class.
+
+    Attributes:
+    - params (dict): Dictionary of training parameters.
+    - X (Sequence[ProcessedData]): Training data used for fitting the kernel
+    - kernel_matrix (np.ndarray): Kernel matrix. This is assigned in the `fit()` method
+
+
+    """
+
     def __init__(self, mu: float):
+        """Initialize the QuantumEvolutionKernel.
+
+        Args:
+            mu (float): Scaling factor for the Jensen-Shannon divergence
+        """
         self.params: dict[str, Any] = {"mu": mu}
         self.X: Sequence[ProcessedData]
         self.kernel_matrix: np.ndarray
@@ -146,7 +161,7 @@ class QuantumEvolutionKernel:
         return kernel_mat
 
     def set_params(self, **kwargs: dict[str, Any]) -> None:
-        """Set multiple parameters dynamically using setattr
+        """Set multiple parameters for the kernel.
 
         Args:
             **kwargs: Arbitrary keyword dictionary where keys are attribute names
