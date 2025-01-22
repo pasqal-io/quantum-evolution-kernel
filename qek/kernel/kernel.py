@@ -33,9 +33,10 @@ class QuantumEvolutionKernel:
         self.kernel_matrix: np.ndarray
 
     def __call__(
-        self, graph_1: ProcessedData, graph_2: ProcessedData, size_max: int = 100
+        self, graph_1: ProcessedData, graph_2: ProcessedData, size_max: int | None = None
     ) -> float:
-        """Compute the similarity between two graphs using Jensen-Shannon divergence.
+        """Compute the similarity between two graphs using Jensen-Shannon
+        divergence.
 
         This method computes the square of the Jensen-Shannon divergence (JSD)
         between two probability distributions over bitstrings. The JSD is a
@@ -43,22 +44,34 @@ class QuantumEvolutionKernel:
         can be used as a kernel for machine learning algorithms that require a
         similarity function.
 
-        The input graphs are assumed to have been processed using the ProcessedData
-        class from qek_os.data_io.dataset. The size_max parameter controls the maximum
-        length of the bitstrings considered in the computation.
+        The input graphs are assumed to have been processed using the
+        ProcessedData class from qek_os.data_io.dataset. Parameter `size_max`
+        controls the maximum length of the bitstrings considered in the
+        computation.
         Args:
             graph_1 (ProcessedData): First graph.
             graph_2 (ProcessedData): Second graph.
-            size_max (float, optional): Maximum length of bitstrings to consider. Defaults to -1.
+            size_max (int, optional): Maximum length of bitstrings to
+            consider. Defaults to all.
 
         Returns:
-            float: Similarity between the two graphs, scaled by a factor that depends on mu.
+            float: Similarity between the two graphs, scaled by a factor that
+            depends on mu.
 
         Notes:
-            The JSD is computed using the jensenshannon function from scipy.spatial.distance,
-            and it is squared because jensenshannon scipy function output the distance instead
-            of the divergence.
+            The JSD is computed using the jensenshannon function from
+            `scipy.spatial.distance`, and it is squared because scipy function
+            `jensenshannon` outputs the distance instead of the divergence.
         """
+        if len(graph_1.state_dict) == 0 or len(graph_2.state_dict) == 0:
+            raise ValueError("An input counter is empty")
+
+        if size_max is None:
+            # If size is not specified, it's the length of bitstrings.
+            bitstring_1 = next(iter(graph_1.state_dict.keys()))
+            bitstring_2 = next(iter(graph_1.state_dict.keys()))
+            size_max = max(len(bitstring_1), len(bitstring_2))
+
         dist_graph_1 = dist_excitation_and_vec(
             count_bitstring=graph_1.state_dict, size_max=size_max
         )
@@ -112,15 +125,17 @@ class QuantumEvolutionKernel:
     def create_train_kernel_matrix(self, train_dataset: Sequence[ProcessedData]) -> np.ndarray:
         """Compute a kernel matrix for a given training dataset.
 
-        This method computes a symmetric N x N kernel matrix from the Jensen-Shannon
-        divergences between all pairs of graphs in the input dataset. The resulting matrix
-        can be used as a similarity metric for machine learning algorithms.
+        This method computes a symmetric N x N kernel matrix from the
+        Jensen-Shannon divergences between all pairs of graphs in the input
+        dataset. The resulting matrix can be used as a similarity metric for
+        machine learning algorithms.
         Args:
-            train_dataset (Sequence[ProcessedData]): A list of ProcessedData objects to compute
-            the kernel matrix from.
+            train_dataset (Sequence[ProcessedData]): A list of ProcessedData
+            objects to compute the kernel matrix from.
         Returns:
-            np.ndarray: An N x N symmetric matrix where the entry at row i and column j represents
-            the similarity between the graphs in positions i and j of the input dataset.
+            np.ndarray: An N x N symmetric matrix where the entry at row i and
+            column j represents the similarity between the graphs in positions
+            i and j of the input dataset.
         """
         N = len(train_dataset)
         kernel_mat = np.zeros((N, N))
@@ -135,22 +150,26 @@ class QuantumEvolutionKernel:
         test_dataset: Sequence[ProcessedData],
         train_dataset: Sequence[ProcessedData],
     ) -> np.ndarray:
-        """Compute a kernel matrix for a given testing dataset and training set.
+        """
+        Compute a kernel matrix for a given testing dataset and training
+        set.
 
         This method computes an N x M kernel matrix from the Jensen-Shannon
         divergences between all pairs of graphs in the input testing dataset
         and the training dataset.
-        The resulting matrix can be used as a similarity metric for machine learning algorithms,
-        particularly when evaluating the performance on the test dataset using a trained model.
+        The resulting matrix can be used as a similarity metric for machine
+        learning algorithms,
+        particularly when evaluating the performance on the test dataset using
+        a trained model.
         Args:
             test_dataset (Sequence[ProcessedData]): A list of ProcessedData
             objects representing the testing dataset.
             train_dataset (Sequence[ProcessedData]): A list of ProcessedData
             objects representing the training set.
         Returns:
-            np.ndarray: An M x N matrix where the entry at row i and column j represents
-            the similarity between the graph in position i of the test dataset
-            and the graph in position j of the training set.
+            np.ndarray: An M x N matrix where the entry at row i and column j
+            represents the similarity between the graph in position i of the
+            test dataset and the graph in position j of the training set.
         """
         N_train = len(train_dataset)
         N_test = len(test_dataset)
@@ -195,30 +214,50 @@ def count_occupation_from_bitstring(bitstring: str) -> int:
     return sum(int(bit) for bit in bitstring)
 
 
-def dist_excitation_and_vec(count_bitstring: dict[str, int], size_max: int) -> np.ndarray:
-    """Calculates the distribution of excitation energies from a dictionary of
-    bitstrings to their respective counts, and then creates a NumPy vector with the
-    results.
+def dist_excitation_and_vec(
+    count_bitstring: dict[str, int], size_max: int | None = None
+) -> np.ndarray:
+    """
+    Calculates the distribution of excitation energies from a dictionary of
+    bitstrings to their respective counts.
 
     Args:
         count_bitstring (dict[str, int]): A dictionary mapping binary strings
             to their counts.
-        size_max (int): The maximum size of the resulting NumPy array.
+        size_max (int | None): If specified, only keep `size_max` energy
+            distributions in the output. Otherwise, keep all values.
 
     Returns:
         np.ndarray: A NumPy array where keys are the number of '1' bits
             in each binary string and values are the normalized counts.
     """
-    count_occ: dict = collections.defaultdict(float)
+
+    if len(count_bitstring) == 0:
+        raise ValueError("The input counter is empty")
+
+    if size_max is None:
+        # If size is not specified, it's the length of bitstrings.
+        # We assume that all bitstrings in `count_bitstring` have the
+        # same length and we have just checked that it's not empty.
+
+        # Pick the length of the first bitstring.
+        # We have already checked that `count_bitstring` is not empty.
+        bitstring = next(iter(count_bitstring.keys()))
+        size_max = len(bitstring)
+
+    # Make mypy realize that `size_max` is now always an `int`.
+    assert type(size_max) is int
+
+    count_occupation: dict[int, int] = collections.defaultdict(int)
     total = 0.0
     for k, v in count_bitstring.items():
-        nbr_occ = count_occupation_from_bitstring(k)
-        count_occ[nbr_occ] += v
+        occupation = count_occupation_from_bitstring(k)
+        count_occupation[occupation] += v
         total += v
 
-    numpy_vec = np.zeros(size_max)
-    for k, v in count_occ.items():
-        if int(k) <= size_max:
-            numpy_vec[k] = v / total
+    numpy_vec = np.zeros(size_max + 1, dtype=float)
+    for occupation, count in count_occupation.items():
+        if occupation < size_max:
+            numpy_vec[occupation] = count / total
 
     return numpy_vec
