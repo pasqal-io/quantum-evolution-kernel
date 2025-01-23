@@ -15,26 +15,108 @@ class QuantumEvolutionKernel:
     """QuantumEvolutionKernel class.
 
     Attributes:
-    - params (dict): Dictionary of training parameters.
-    - X (Sequence[ProcessedData]): Training data used for fitting the kernel
+    - params (dict): Dictionary of training parameters. As of this writing, the only
+        training parameter is "mu", the scaling factor for the Jensen-Shannon divergence.
+    - X (Sequence[ProcessedData]): Training data used for fitting the kernel.
     - kernel_matrix (np.ndarray): Kernel matrix. This is assigned in the `fit()` method
 
 
     """
 
-    def __init__(self, mu: float):
+    def __init__(self, mu: float, size_max: int | None = None):
         """Initialize the QuantumEvolutionKernel.
 
         Args:
             mu (float): Scaling factor for the Jensen-Shannon divergence
+            size_max (int, optional): If specified, only consider the first `size_max`
+                qubits of bitstrings. Otherwise, consider all qubits. You may use this
+                to trade precision in favor of speed.
         """
-        self.params: dict[str, Any] = {"mu": mu}
+        self.params: dict[str, Any] = {
+            "mu": mu,
+            "size_max": size_max,
+        }
         self.X: Sequence[ProcessedData]
         self.kernel_matrix: np.ndarray
 
     def __call__(
-        self, graph_1: ProcessedData, graph_2: ProcessedData, size_max: int | None = None
-    ) -> float:
+        self,
+        X1: Sequence[ProcessedData],
+        X2: Sequence[ProcessedData] | None = None,
+    ) -> NDArray[np.floating]:
+        """Compute a kernel matrix from two sequences of processed data.
+
+        This method computes a M x N kernel matrix from the Jensen-Shannon divergences
+        between all pairs of graphs in the two datasets. The resulting matrix can be used
+        as a similarity metric for machine learning algorithms.
+
+        If `X1` and `X2` are two sequences representing the processed data for a
+        single graph each, the resulting matrix can be used as a measure of similarity
+        between both graphs.
+
+        Args:
+            X1: processed data to be used as rows.
+            X2 (optional): processed data to be used as columns. If unspecified, use X1
+                as both rows and columns.
+        Returns:
+            np.ndarray: A len(X1) x len(X2) matrix where entry[i, j] represents the
+            similarity between rows[i] and columns[j], scaled by a factor that depends
+            on mu.
+        Notes:
+            The JSD is computed using the jensenshannon function from
+            `scipy.spatial.distance`, and it is squared because scipy function
+            `jensenshannon` outputs the distance instead of the divergence.
+        """
+        # If size is not specified, set it to the length of the largest bitstring.
+        size_max = self.params["size_max"]
+        if size_max is None:
+            if X2 is None:
+                # No need to walk the same source twice.
+                sources = [X1]
+            else:
+                sources = [X1, X2]
+            for source in sources:
+                for data in source:
+                    length = len(data.sequence.qubit_info)
+                    if size_max is None or size_max <= length:
+                        size_max = length
+
+        # Note: At this stage, size_max could theoretically still be `None``, if both `X1` and `X2`
+        # are empty. In such cases, `dist_excitation` will never be called, so we're ok.
+
+        mu = float(self.params["mu"])
+        feat_rows = [row.dist_excitation(size_max) for row in X1]
+
+        if X2 is None:
+            # Fast path:
+            # - rows and columns are identical, so no need to compute a `feat_cols`;
+            # - the matrix is symmetric, we only need to compute half of it.
+            #
+            # We could avoid computing kernel[i, i], as we know that it's always 1,
+            # but we do not perform this specific optimization, as it is a useful
+            # canary to detect some bugs.
+            kernel = np.zeros([len(X1), len(X1)])
+            for i, dist_row in enumerate(feat_rows):
+                for j in range(i, len(feat_rows)):
+                    dist_col = feat_rows[j]
+                    js = jensenshannon(dist_row, dist_col) ** 2
+                    similarity = np.exp(mu * js)
+                    kernel[i, j] = similarity
+                    if j != i:
+                        kernel[j, i] = similarity
+        else:
+            # Slow path:
+            # - we need to compute a `feat_columns`
+            # - the matrix is generally not symmetric and diagonal entries are generally not 1.
+            kernel = np.zeros([len(X1), len(X2)])
+            feat_columns = [col.dist_excitation(size_max) for col in X2]
+            for i, dist_row in enumerate(feat_rows):
+                for j, dist_col in enumerate(feat_columns):
+                    js = jensenshannon(dist_row, dist_col) ** 2
+                    kernel[i, j] = np.exp(mu * js)
+        return kernel
+
+    def similarity(self, graph_1: ProcessedData, graph_2: ProcessedData) -> float:
         """Compute the similarity between two graphs using Jensen-Shannon
         divergence.
 
@@ -63,32 +145,17 @@ class QuantumEvolutionKernel:
             `scipy.spatial.distance`, and it is squared because scipy function
             `jensenshannon` outputs the distance instead of the divergence.
         """
-        if len(graph_1.state_dict) == 0 or len(graph_2.state_dict) == 0:
-            raise ValueError("An input counter is empty")
-
-        if size_max is None:
-            # If size is not specified, it's the length of bitstrings.
-            bitstring_1 = next(iter(graph_1.state_dict.keys()))
-            bitstring_2 = next(iter(graph_1.state_dict.keys()))
-            size_max = max(len(bitstring_1), len(bitstring_2))
-
-        dist_graph_1 = dist_excitation_and_vec(
-            count_bitstring=graph_1.state_dict, size_max=size_max
-        )
-        dist_graph_2 = dist_excitation_and_vec(
-            count_bitstring=graph_2.state_dict, size_max=size_max
-        )
-        js = (
-            jensenshannon(p=dist_graph_1, q=dist_graph_2) ** 2
-        )  # Because the divergence is the square root of the distance
-        return float(np.exp(-self.params["mu"] * js))
+        matrix = self([graph_1], [graph_2])
+        return float(matrix[0, 0])
 
     def fit(self, X: Sequence[ProcessedData], y: list | None = None) -> None:
         """Fit the kernel to the training dataset by storing the dataset.
 
         Args:
             X (Sequence[ProcessedData]): The training dataset.
-            y: list: Target variable for the dataset sequence. defaults to None.
+            y: list: Target variable for the dataset sequence.
+                This argument is ignored, provided only for compatibility
+                with machine-learning libraries.
         """
         self.X = X
         self.kernel_matrix = self.create_train_kernel_matrix(self.X)
@@ -98,8 +165,9 @@ class QuantumEvolutionKernel:
 
         Args:
             X_test (Sequence[ProcessedData]): The dataset to transform.
-            y_test: list: Target variable for the dataset sequence. defaults to None.
-
+            y_test: list: Target variable for the dataset sequence.
+                This argument is ignored, provided only for compatibility
+                with machine-learning libraries.
         Returns:
             np.ndarray: Kernel matrix where each entry represents the similarity between
                         the given dataset and the training dataset.
@@ -114,8 +182,9 @@ class QuantumEvolutionKernel:
 
         Args:
             X (Sequence[ProcessedData]): The dataset to fit and transform.
-            y: list: Target variable for the dataset sequence. defaults to None.
-
+            y: list: Target variable for the dataset sequence.
+                This argument is ignored, provided only for compatibility
+                with machine-learning libraries.
         Returns:
             np.ndarray: Kernel matrix for the training dataset.
         """
@@ -137,13 +206,7 @@ class QuantumEvolutionKernel:
             column j represents the similarity between the graphs in positions
             i and j of the input dataset.
         """
-        N = len(train_dataset)
-        kernel_mat = np.zeros((N, N))
-        for i in range(N):
-            for j in range(i + 1, N):
-                kernel_mat[i][j] = self(train_dataset[i], train_dataset[j])
-                kernel_mat[j][i] = kernel_mat[i][j]
-        return kernel_mat
+        return self(train_dataset)
 
     def create_test_kernel_matrix(
         self,
@@ -171,13 +234,7 @@ class QuantumEvolutionKernel:
             represents the similarity between the graph in position i of the
             test dataset and the graph in position j of the training set.
         """
-        N_train = len(train_dataset)
-        N_test = len(test_dataset)
-        kernel_mat = np.zeros((N_test, N_train))
-        for i in range(N_test):
-            for j in range(N_train):
-                kernel_mat[i][j] = self(test_dataset[i], train_dataset[j])
-        return kernel_mat
+        return self(test_dataset, train_dataset)
 
     def set_params(self, **kwargs: dict[str, Any]) -> None:
         """Set multiple parameters for the kernel.
@@ -193,11 +250,12 @@ class QuantumEvolutionKernel:
         """Retrieve the value of all parameters.
 
          Args:
-            deep (bool): Ignored. Added for compatibility with various machine learning libraries,
-                such as scikit-learn.
+            deep (bool): Ignored for the time being. Added for compatibility with
+                various machine learning libraries, such as scikit-learn.
 
         Returns
             dict: A dictionary of parameters and their respective values.
+                Note that this method always performs a copy of the dictionary.
         """
         return copy.deepcopy(self.params)
 
