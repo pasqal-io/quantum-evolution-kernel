@@ -43,7 +43,7 @@ jobs:
         if-no-files-found: ignore
 
   test_notebook:
-    name: Run the Jupyter notebook tutorial (ubuntu)
+    name: Run the Jupyter notebook tutorials (ubuntu)
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -64,8 +64,9 @@ jobs:
       - name: Run notebook
         run: |
           hatch run pip install jupyter
-          hatch run jupyter execute examples/tutorial.ipynb
-          hatch run jupyter execute examples/ml_tutorial.ipynb
+          for tutorial in examples/tutorial*.ipyng;do do
+            hatch run jupyter execute examples/tutorial.ipynb;
+          done
 
   publish:
     name: Publish to PyPI
