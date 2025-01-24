@@ -294,9 +294,11 @@ class EmuMPSExtractor(BaseExtractor[GraphType]):
             cutoff_duration = int(ceil(compiled.sequence.get_duration() / dt) * dt)
             observable = emu_mps.BitStrings(evaluation_times={cutoff_duration})
             config = emu_mps.MPSConfig(observables=[observable], dt=dt)
-            states: dict[str, Any] = backend.run(compiled.sequence, config)[observable.name][
-                cutoff_duration
+            observed: dict[int, dict[str, Any]] = backend.run(compiled.sequence, config)[
+                observable.name
             ]
+            print("observed %s, type of keys is %s" % (observed, type(next(iter(observed)))))
+            states: dict[str, Any] = observed[cutoff_duration]
             logger.debug("Execution of compiled graph # %s complete", id)
             processed_data.append(
                 ProcessedData(

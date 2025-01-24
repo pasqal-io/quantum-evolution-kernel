@@ -44,8 +44,10 @@ $ pipx install quantum-evolution-kernel
 
 ## Usage
 
-For the time being, the easiest way to learn how to use this package is to look
-at the [example notebook](examples/tutorial.ipynb).
+We have a two parts tutorial:
+
+1. [Using a Quantum Device to extract machine-learning features](examples/tutorial%201%20-%20Using%20a%20Quantum%20Device%20to%20Extract%20Machine-Learning%20Features%20copy.ipynb);
+2. [Machine Learning](TBD)
 
 See also the [full API documentation](https://pqs.pages.pasqal.com/quantum-evolution-kernel/).
 

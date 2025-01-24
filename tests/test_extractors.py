@@ -62,3 +62,4 @@ async def test_emulators() -> None:
     # and that we obtain the expected number of items.
     emu_mps_loaded = qek_dataset.load_dataset(emu_mps_path)
     assert len(emu_mps_loaded) == len(emu_mps_results)
+    assert False
