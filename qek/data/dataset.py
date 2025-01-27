@@ -7,6 +7,8 @@ import logging
 import numpy as np
 import pulser as pl
 
+from qek.data.graphs import EPSILON_RADIUS_UM
+
 logger = logging.getLogger(__name__)
 
 
@@ -92,8 +94,11 @@ class ProcessedData:
         """
         Draw the register on screen
         """
-        cast(pl.Register, self.sequence.register).draw(
-            blockade_radius=self.sequence.device.min_atom_distance + 0.01
+        register = cast(pl.Register, self.sequence.register)
+        register.draw(
+            # We increase slightly the blockade radius to take into account rounding errors.
+            blockade_radius=self.sequence.device.min_atom_distance
+            + EPSILON_RADIUS_UM
         )
 
     def draw_excitation(self) -> None:
