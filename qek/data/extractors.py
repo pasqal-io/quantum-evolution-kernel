@@ -6,8 +6,7 @@ import logging
 from math import ceil
 from typing import Any, Callable, Generic, Sequence, TypeVar, cast
 import emu_mps
-from pasqal_cloud import SDK
-from pasqal_cloud.batch import Batch
+from pasqal_cloud import SDK, Batch, BatchFilters
 import pulser as pl
 from pulser.devices import Device
 from pulser.json.abstract_repr.deserializer import deserialize_device
@@ -370,7 +369,10 @@ class QPUExtractor(BaseExtractor[GraphType]):
                 logger.debug("Executing compiled graph #%s", id)
                 batch = self._sdk.create_batch(
                     compiled.sequence.to_abstract_repr(),
-                    jobs=[{"runs": 1000}],
+                    # Note: The SDK API doesn't support runs longer than 500 jobs.
+                    # If we want to add more runs, we'll need to split them across
+                    # several jobs.
+                    jobs=[{"runs": 500}],
                     wait=False,
                 )
                 logger.info(
@@ -391,15 +393,28 @@ class QPUExtractor(BaseExtractor[GraphType]):
                 batches.append(self._sdk.get_batch(batch_id))
 
         # Now wait until all batches are complete.
-        waiting = True
-        while waiting:
-            waiting = False
-            for batch in batches:
+        pending_batches: dict[str, Batch] = {batch.id: batch for batch in batches}
+        completed_batches: dict[str, Batch] = {}
+        while len(pending_batches) > 0:
+            # Fetch up to 100 pending batches (limit imposed by the SDK).
+            check_ids = []
+            for batch in pending_batches.values():
+                check_ids.append(batch.id)
+                if len(check_ids) >= 100:
+                    break
+            # Update their status.
+            check_batches = self._sdk.get_batches(
+                filters=BatchFilters(id=check_ids)
+            )  # Ideally, this should be async, cf. https://github.com/pasqal-io/pasqal-cloud/issues/162.
+            for batch in check_batches.results:
+                assert isinstance(batch, Batch)
                 if batch.status in {"PENDING", "RUNNING"}:
-                    # At least one job is pending, let's wait.
-                    await sleep(2)
-                    logger.debug("Job %s is still incomplete")
-                    waiting = True
+                    logger.debug("Job %s is now complete", batch.id)
+                    pending_batches.pop(batch.id)
+                    completed_batches[batch.id] = batch
+            if len(pending_batches) > 0:
+                logger.debug("%s jobs are still incomplete", len(pending_batches))
+                await sleep(delay=2)
 
         logger.info("All jobs complete, %s sequences executed", len(batches))
 
@@ -407,9 +422,12 @@ class QPUExtractor(BaseExtractor[GraphType]):
         # Now collect data. We rely upon the fact
         # that we enqueued exactly one batch per sequence, in the same order.
         processed_data: list[ProcessedData] = []
-        for i, batch in enumerate(batches):
+        for i, original_batch in enumerate(batches):
             # Note: There's only one job per batch.
-            assert len(batch.jobs) == 1
+            assert len(original_batch.jobs) == 1
+            batch = completed_batches[original_batch.id]
+            assert len(original_batch.jobs) == 1
+
             for _, job in batch.jobs.items():
                 if job.status == "DONE":
                     state_dict = job.result
