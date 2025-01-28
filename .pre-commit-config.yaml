@@ -7,6 +7,7 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
 
+# Reformat source code.
 -   repo: https://github.com/ambv/black
     rev: 24.8.0
     hooks:
@@ -24,7 +25,7 @@ repos:
       - id: mypy
         exclude: examples|docs
 
-  # Cleanup jupyter notebooks
+# Cleanup jupyter notebooks
 -   repo: https://github.com/kynan/nbstripout
     rev: 0.5.0
     hooks:
