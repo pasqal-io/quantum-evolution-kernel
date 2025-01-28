@@ -6,6 +6,7 @@ import copy
 from collections.abc import Sequence
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.spatial.distance import jensenshannon
 
 from qek.data.dataset import ProcessedData
@@ -100,7 +101,7 @@ class QuantumEvolutionKernel:
                 for j in range(i, len(feat_rows)):
                     dist_col = feat_rows[j]
                     js = jensenshannon(dist_row, dist_col) ** 2
-                    similarity = np.exp(mu * js)
+                    similarity = np.exp(-mu * js)
                     kernel[i, j] = similarity
                     if j != i:
                         kernel[j, i] = similarity
@@ -113,7 +114,7 @@ class QuantumEvolutionKernel:
             for i, dist_row in enumerate(feat_rows):
                 for j, dist_col in enumerate(feat_columns):
                     js = jensenshannon(dist_row, dist_col) ** 2
-                    kernel[i, j] = np.exp(mu * js)
+                    kernel[i, j] = np.exp(-mu * js)
         return kernel
 
     def similarity(self, graph_1: ProcessedData, graph_2: ProcessedData) -> float:
