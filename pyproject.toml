@@ -36,6 +36,7 @@ dependencies = [
   "torch",
   "torch_geometric",
   "matplotlib",
+  "emu-mps",
 ]
 
 [tool.hatch.metadata]
@@ -59,6 +60,7 @@ dependencies = [
   "pytest",
   "pytest-cov",
   "pytest-xdist",
+  "pytest-asyncio",
   "nbconvert",
   "ipykernel",
   "pre-commit",
@@ -84,6 +86,8 @@ filterwarnings = [
   "ignore:Call to deprecated create function OneofDescriptor",
   "ignore:distutils Version classes are deprecated.",
 ]
+asyncio_mode="auto"
+asyncio_default_fixture_loop_scope="function"
 
 [tool.hatch.envs.docs]
 dependencies = [
