@@ -5,6 +5,7 @@ import json
 import logging
 from math import ceil
 from typing import Any, Callable, Generic, Sequence, TypeVar, cast
+from uuid import UUID
 import emu_mps
 from pasqal_cloud import SDK, Batch, BatchFilters
 import pulser as pl
@@ -340,7 +341,7 @@ class QPUExtractor(BaseExtractor[GraphType]):
         username: str,
         password: str | None = None,
         device_name: str = "FRESNEL",
-        batch_id: list[str] | None = None,
+        batch_ids: list[str] | None = None,
     ):
         sdk = SDK(username=username, project_id=project_id, password=password)
 
@@ -350,19 +351,18 @@ class QPUExtractor(BaseExtractor[GraphType]):
 
         super().__init__(path=path, device=device, compiler=compiler)
         self._sdk = sdk
-        self._batch_id = batch_id
+        self._batch_ids: list[str] | None = batch_ids
 
     @property
     def batch_ids(self) -> list[str] | None:
-        return self._batch_id
+        return self._batch_ids
 
     async def run(self) -> list[ProcessedData]:
         if len(self.sequences) == 0:
             logger.warning("No sequences to run, did you forget to call compile()?")
             return []
 
-        batches: list[Batch] = []
-        if self._batch_id is None:
+        if self._batch_ids is None:
             # Enqueue jobs.
             self._batch_ids = []
             for compiled in self.sequences:
@@ -377,56 +377,45 @@ class QPUExtractor(BaseExtractor[GraphType]):
                 )
                 logger.info(
                     "Remote execution of compiled graph #%s starting, batched with id %s",
-                    id,
+                    compiled.graph.id,
                     batch.id,
                 )
-                batches.append(batch)
                 self._batch_ids.append(batch.id)
             logger.info(
                 "All %s jobs enqueued for remote execution, with ids %s",
-                len(batches),
+                len(self._batch_ids),
                 self._batch_ids,
             )
-        else:
-            # Get jobs back from the cloud API.
-            for batch_id in self._batch_id:
-                batches.append(self._sdk.get_batch(batch_id))
 
         # Now wait until all batches are complete.
-        pending_batches: dict[str, Batch] = {batch.id: batch for batch in batches}
+        pending_batch_ids: set[str] = set(self._batch_ids)
         completed_batches: dict[str, Batch] = {}
-        while len(pending_batches) > 0:
+        while len(pending_batch_ids) > 0:
+            await sleep(delay=2)
+
             # Fetch up to 100 pending batches (limit imposed by the SDK).
-            check_ids = []
-            for batch in pending_batches.values():
-                check_ids.append(batch.id)
-                if len(check_ids) >= 100:
-                    break
+            MAX_BATCH_LEN=100
+            check_ids: list[str|UUID] = [cast(str|UUID, id) for id in pending_batch_ids][:MAX_BATCH_LEN]
             # Update their status.
             check_batches = self._sdk.get_batches(
                 filters=BatchFilters(id=check_ids)
-            )  # Ideally, this should be async, cf. https://github.com/pasqal-io/pasqal-cloud/issues/162.
+            )  # Ideally, this should be async, see https://github.com/pasqal-io/pasqal-cloud/issues/162.
             for batch in check_batches.results:
                 assert isinstance(batch, Batch)
-                if batch.status in {"PENDING", "RUNNING"}:
+                if batch.status not in {"PENDING", "RUNNING"}:
                     logger.debug("Job %s is now complete", batch.id)
-                    pending_batches.pop(batch.id)
+                    pending_batch_ids.discard(batch.id)
                     completed_batches[batch.id] = batch
-            if len(pending_batches) > 0:
-                logger.debug("%s jobs are still incomplete", len(pending_batches))
-                await sleep(delay=2)
 
-        logger.info("All jobs complete, %s sequences executed", len(batches))
+        logger.info("All jobs complete, %s sequences executed", len(completed_batches))
 
         # At this point, all batches are complete.
         # Now collect data. We rely upon the fact
         # that we enqueued exactly one batch per sequence, in the same order.
         processed_data: list[ProcessedData] = []
-        for i, original_batch in enumerate(batches):
-            # Note: There's only one job per batch.
-            assert len(original_batch.jobs) == 1
-            batch = completed_batches[original_batch.id]
-            assert len(original_batch.jobs) == 1
+        for i, id in enumerate(self._batch_ids):
+            batch = completed_batches[id]
+            assert len(batch.jobs) == 1
 
             for _, job in batch.jobs.items():
                 if job.status == "DONE":
