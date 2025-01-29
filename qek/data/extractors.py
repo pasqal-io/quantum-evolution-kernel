@@ -366,7 +366,7 @@ class QPUExtractor(BaseExtractor[GraphType]):
             # Enqueue jobs.
             self._batch_ids = []
             for compiled in self.sequences:
-                logger.debug("Executing compiled graph #%s", id)
+                logger.debug("Enqueuing execution of compiled graph #%s", compiled.graph.id)
                 batch = self._sdk.create_batch(
                     compiled.sequence.to_abstract_repr(),
                     # Note: The SDK API doesn't support runs longer than 500 jobs.
@@ -386,6 +386,7 @@ class QPUExtractor(BaseExtractor[GraphType]):
                 len(self._batch_ids),
                 self._batch_ids,
             )
+        assert len(self._batch_ids) == len(self.sequences)
 
         # Now wait until all batches are complete.
         pending_batch_ids: set[str] = set(self._batch_ids)
@@ -394,8 +395,10 @@ class QPUExtractor(BaseExtractor[GraphType]):
             await sleep(delay=2)
 
             # Fetch up to 100 pending batches (limit imposed by the SDK).
-            MAX_BATCH_LEN=100
-            check_ids: list[str|UUID] = [cast(str|UUID, id) for id in pending_batch_ids][:MAX_BATCH_LEN]
+            MAX_BATCH_LEN = 100
+            check_ids: list[str | UUID] = [cast(str | UUID, id) for id in pending_batch_ids][
+                :MAX_BATCH_LEN
+            ]
             # Update their status.
             check_batches = self._sdk.get_batches(
                 filters=BatchFilters(id=check_ids)
@@ -410,8 +413,10 @@ class QPUExtractor(BaseExtractor[GraphType]):
         logger.info("All jobs complete, %s sequences executed", len(completed_batches))
 
         # At this point, all batches are complete.
-        # Now collect data. We rely upon the fact
-        # that we enqueued exactly one batch per sequence, in the same order.
+        # Now, collect data.
+        #
+        # We rely upon the fact that for any `i`,
+        # `self._batch_id[i]` is the batch for `self.sequences[i]`.
         processed_data: list[ProcessedData] = []
         for i, id in enumerate(self._batch_ids):
             batch = completed_batches[id]
