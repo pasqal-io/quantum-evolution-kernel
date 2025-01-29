@@ -362,6 +362,11 @@ class QPUExtractor(BaseExtractor[GraphType]):
             logger.warning("No sequences to run, did you forget to call compile()?")
             return []
 
+        device: pl.devices.Device = self.sequences[0].sequence.device
+        # The API doesn't support run longer than 500 jobs.
+        # If we want to add more runs, we'll need to split them across several jobs.
+        max_runs = device.max_runs if isinstance(device.max_runs, int) else 500
+
         if self._batch_ids is None:
             # Enqueue jobs.
             self._batch_ids = []
@@ -369,10 +374,7 @@ class QPUExtractor(BaseExtractor[GraphType]):
                 logger.debug("Enqueuing execution of compiled graph #%s", compiled.graph.id)
                 batch = self._sdk.create_batch(
                     compiled.sequence.to_abstract_repr(),
-                    # Note: The SDK API doesn't support runs longer than 500 jobs.
-                    # If we want to add more runs, we'll need to split them across
-                    # several jobs.
-                    jobs=[{"runs": 500}],
+                    jobs=[{"runs": max_runs}],
                     wait=False,
                 )
                 logger.info(
@@ -391,10 +393,10 @@ class QPUExtractor(BaseExtractor[GraphType]):
         # Now wait until all batches are complete.
         pending_batch_ids: set[str] = set(self._batch_ids)
         completed_batches: dict[str, Batch] = {}
+
         while len(pending_batch_ids) > 0:
             await sleep(delay=2)
-
-            # Fetch up to 100 pending batches (limit imposed by the SDK).
+            # We can check up to 100 batches in a single query with the SDK, so let's do that.
             MAX_BATCH_LEN = 100
             check_ids: list[str | UUID] = [cast(str | UUID, id) for id in pending_batch_ids][
                 :MAX_BATCH_LEN
