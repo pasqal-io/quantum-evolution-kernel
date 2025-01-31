@@ -14,6 +14,7 @@ authors = [
   { name = "Shaheen Acheche", email = "shaheen.acheche@pasqal.com" },
   { name = "Roland Guichard", email = "roland.guichard@pasqal.com" },
   { name = "David Teller",    email = "david.teller@pasqal.com" },
+  { name = "Manu Lahariya",    email = "manu.lahariya@pasqal.com" },
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
