@@ -17,11 +17,12 @@ concurrency:
 
 jobs:
   test_qek_ubuntu:
-    name: Run unit/integration tests (ubuntu)
-    runs-on: ubuntu-latest
+    name: Run unit/integration tests
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: ["3.10", "3.11"]
+        os: [ubutu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
     - name: Checkout QEK
       uses: actions/checkout@v4
@@ -43,11 +44,12 @@ jobs:
         if-no-files-found: ignore
 
   test_notebook:
-    name: Run the Jupyter notebook tutorial (ubuntu)
-    runs-on: ubuntu-latest
+    name: Run the Jupyter notebook tutorial
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: ["3.10", "3.11"]
+        os: [ubutu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
       - name: Checkout QEK
         uses: actions/checkout@v4
