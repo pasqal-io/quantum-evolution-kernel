@@ -46,8 +46,8 @@ $ pipx install quantum-evolution-kernel
 
 We have a two parts tutorial:
 
-1. [Using a Quantum Device to extract machine-learning features](examples/tutorial%201%20-%20Using%20a%20Quantum%20Device%20to%20Extract%20Machine-Learning%20Features%20copy.ipynb);
-2. [Machine Learning](TBD)
+1. [Using a Quantum Device to extract machine-learning features](examples/tutorial%201%20-%20Using%20a%20Quantum%20Device%20to%20Extract%20Machine-Learning%20Features.ipynb);
+2. [Machine Learning with the Quantum Evolution Kernel](examples/tutorial%202%20-%20Machine-Learning%20with%20the%20Quantum%20EvolutionKernel.ipynb)
 
 See also the [full API documentation](https://pqs.pages.pasqal.com/quantum-evolution-kernel/).
 
