@@ -35,7 +35,7 @@ dependencies = [
   "rdkit",
   "scikit-learn",
   "torch",
-  "torch_geometric",
+  "torch_geometric~=2.6.0",
   "matplotlib",
   "emu-mps~=1.2.0",
   "pasqal-cloud",
@@ -74,6 +74,7 @@ dependencies = [
 ]
 
 [tool.hatch.envs.default.scripts]
+before_tests = "python scripts/before_tests.py"
 test = "pytest -n auto --cov-report=term-missing --cov-config=pyproject.toml --cov=qek --cov=tests --markdown-docs {args}"
 test_readme = "pytest --markdown-docs README.md"
 
