@@ -1,30 +1,232 @@
 import abc
-from asyncio import sleep
+import asyncio
 from dataclasses import dataclass
+import itertools
 import json
 import logging
 from math import ceil
-from typing import Any, Callable, Generic, Sequence, TypeVar, cast
 from uuid import UUID
+import time
+from typing import Any, Callable, Generator, Generic, Sequence, TypeVar, cast
 import emu_mps
+from numpy.typing import NDArray
 from pasqal_cloud import SDK, Batch, BatchFilters
+import numpy as np
 import pulser as pl
 from pulser.devices import Device
 from pulser.json.abstract_repr.deserializer import deserialize_device
 from pulser_simulation import QutipEmulator
 
-from qek.data.dataset import ProcessedData
+from qek.data import dataset
 from qek.data.graphs import BaseGraph, BaseGraphCompiler
+from qek.data.dataset import ProcessedData
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class Compiled:
+    """
+    The result of compiling a graph for execution on a quantum device.
+    """
+
+    # Future plans: as of this writing, this class (or a reworked version of it)
+    # is expected to move to the `qool-layer` library.
+
+    # The graph itself.
     graph: BaseGraph
+
+    # A sequence adapted to the quantum device.
     sequence: pl.Sequence
 
 
+@dataclass
+class Feature:
+    """
+    A feature extracted from raw data.
+    """
+
+    data: NDArray[np.floating]
+
+
+class BaseExtracted(abc.ABC):
+    """
+    Data extracted by one of the subclasses of `BaseExtractor`.
+
+    Note that the list of processed data will generally *not* contain all the graphs ingested
+    by the Extractor, as not all graphs may not be compiled for a given device.
+    """
+
+    def __init__(self, device: Device):
+        self.device = device
+
+    def __await__(self) -> Generator[Any, Any, None]:
+        """
+        Wait asynchronously until execution is ready.
+
+        This will avoid blocking your main thread, so calling this method once,
+        before the first call to `processed_data`, is strongly recommended
+        for use on a server or an interactive application.
+        """
+        # By default, no need to wait.
+        yield None
+
+    @property
+    @abc.abstractmethod
+    def processed_data(self) -> list[dataset.ProcessedData]:
+        pass
+
+    @property
+    @abc.abstractmethod
+    def raw_data(self) -> list[BaseGraph]:
+        """
+        A subset of the graphs ingested by the Extractor.
+        """
+        pass
+
+    @property
+    @abc.abstractmethod
+    def targets(self) -> list[int] | None:
+        """
+        If available, the machine-learning targets for these graphs, in the same order and with the same number of entrie as `raw_data`.
+        """
+        pass
+
+    @property
+    def sequences(self) -> list[pl.Sequence]:
+        """
+        The sequences compiled from `raw_data`, in the same order and with the same number of entries as `raw_data`.
+        """
+        return [data.sequence for data in self.processed_data]
+
+    @property
+    def states(self) -> list[dict[str, int]]:
+        """
+        The quantum states extracted from `raw_data` by executing `sequences` on the device, in the same order and with the same number of entries as `raw_data`.
+        """
+        return [data.state_dict for data in self.processed_data]
+
+    def features(self, size_max: int | None) -> list[Feature]:
+        """
+        The features extracted from `raw_data` by processing `states`, in the same order and with the same number of entries as `raw_data`.
+
+        By default, the features extracted are the distribution of excitation levels based on `states`. However, subclasses may override
+        this method to provide custom features extraction.
+
+        Arguments:
+            size_max (optional) Performance/precision lever. If specified, specifies the number of qubits to take into account from all
+                the `states`. If `size_max` is lower than the number of qubits used to extract `self.states[i]` (i.e. the number of qubits
+                in `self.sequences[i]`), then only take into account the `size_max` first qubits of this state to extract
+                `self.features(size_max)[i]`. If, on the other hand, `size_max` is greater than the number of qubits used to extract
+                `self.states[i]`, pad `self.features(size_max)[i]` with 0s.
+                If unspecified, use the largest number of qubits in `selfsequences`.
+        """
+        if size_max is None:
+            for seq in self.sequences:
+                if size_max is None or len(seq.qubit_info) > size_max:
+                    size_max = len(seq.qubit_info)
+        if size_max is None:
+            # The only way size_max can be None is if `self.sequences` is empty.
+            return []
+
+        return [Feature(dataset.dist_excitation(state, size_max)) for state in self.states]
+
+    def save_dataset(self, file_path: str) -> None:
+        """Saves the processed dataset to a JSON file.
+
+        Note: This does NOT attempt to save the graphs.
+
+        Args:
+            dataset: The dataset to be saved.
+            file_path (str): The path where the dataset will be saved as a JSON
+                file.
+
+        Note:
+            The data is stored in a format suitable for loading with load_dataset.
+        """
+        with open(file_path, "w") as file:
+            sequences = self.sequences
+            states = self.states
+            targets = self.targets
+            data = [
+                {
+                    "sequence": sequences[i].to_abstract_repr(),
+                    # Some emulators will actually be `dict[str, int64]` instead of `dict[str, int]` and `int64`
+                    # is not JSON-serializable.
+                    #
+                    # The reason for which `int64` is not JSON-serializable is that JSON limits ints to 2^53-1.
+                    # However, in practice, this should not be a problem, since the `int`/`int64` in our dict is
+                    # limited to the number of runs, and we don't expect to be launching 2^53 consecutive runs
+                    # for a single sequence on a device in any foreseeable future (assuming a run of 1ns,
+                    # this would still take ~4 billion years to execute).
+                    "state_dict": {key: int(value) for (key, value) in states[i].items()},
+                    "target": targets[i] if targets is not None else None,
+                }
+                for i in range(len(sequences))
+            ]
+            json.dump(data, file)
+        logger.info("processed data saved to %s", file_path)
+
+
+class SyncExtracted(BaseExtracted):
+    """
+    Data extracted synchronously, i.e. no need to wait for a remote server.
+    """
+
+    def __init__(
+        self,
+        raw_data: list[BaseGraph],
+        targets: list[int] | None,
+        sequences: list[pl.Sequence],
+        states: list[dict[str, int]],
+    ):
+        assert len(raw_data) == len(sequences)
+        assert len(sequences) == len(states)
+        if targets is not None:
+            if len(targets) < len(sequences):
+                # Not all graphs come with a target.
+                #
+                # This Extracted will not be usable as the training sample, so ignore all targets.
+                if len(targets) != 0:
+                    logger.debug(
+                        "We compiled %s graphs but we only have %s targets, ignoring all targets",
+                        len(sequences),
+                        len(targets),
+                    )
+                targets = None
+        self._raw_data = raw_data
+        self._targets = targets
+        self._sequences = sequences
+        self._states = states
+        self._processed_data = [
+            ProcessedData(
+                sequence=seq, state_dict=cast(dict[str, int | np.int64], state), target=target
+            )
+            for (seq, state, target) in itertools.zip_longest(sequences, states, targets or [])
+        ]
+
+    @property
+    def processed_data(self) -> list[ProcessedData]:
+        return self._processed_data
+
+    @property
+    def raw_data(self) -> list[BaseGraph]:
+        return self._raw_data
+
+    @property
+    def targets(self) -> list[int] | None:
+        return self._targets
+
+    @property
+    def sequences(self) -> list[pl.Sequence]:
+        return self._sequences
+
+    @property
+    def states(self) -> list[dict[str, int]]:
+        return self._states
+
+
+# Type variable for BaseExtractor[GraphType].
 GraphType = TypeVar("GraphType")
 
 
@@ -44,7 +246,7 @@ class BaseExtractor(abc.ABC, Generic[GraphType]):
     """
 
     def __init__(
-        self, device: Device, compiler: BaseGraphCompiler[GraphType], path: str | None
+        self, device: Device, compiler: BaseGraphCompiler[GraphType], path: str | None = None
     ) -> None:
         self.path = path
 
@@ -134,18 +336,17 @@ class BaseExtractor(abc.ABC, Generic[GraphType]):
         logger.info("imported %s graphs", len(self.graphs))
 
     @abc.abstractmethod
-    async def run(self) -> list[ProcessedData]:
+    def run(self) -> BaseExtracted:
         """
         Run compiled graphs.
 
         You will need to call `self.compile` first, to make sure that the graphs are compiled.
 
         Returns:
-            A list of processed data from the graphs inserted with `add_graphs`. Note that the
-            list may be shorter than the number of graphs added with `add_graphs`, as not all
-            graphs may be compiled or executed on a given device. In fact, there are categories
-            of graphs that may never be compiled by this library, regardless of device, due to
-            geometric constraints.
+            Data extracted by this extractor.
+
+            Not all extractors may return the same data, so please take a look at the documentation
+            of the extractor you are using.
         """
         raise Exception("Not implemented")
 
@@ -174,15 +375,15 @@ class QutipExtractor(BaseExtractor[GraphType]):
 
     def __init__(
         self,
-        path: str,
         compiler: BaseGraphCompiler[GraphType],
         device: Device = pl.devices.AnalogDevice,
+        path: str | None = None,
     ):
         super().__init__(path=path, device=device, compiler=compiler)
         self.graphs: list[BaseGraph]
         self.device = device
 
-    async def run(self, max_qubits: int = 8) -> list[ProcessedData]:
+    def run(self, max_qubits: int = 8) -> SyncExtracted:
         """
         Run the compiled graphs.
 
@@ -198,8 +399,12 @@ class QutipExtractor(BaseExtractor[GraphType]):
         """
         if len(self.sequences) == 0:
             logger.warning("No sequences to run, did you forget to call compile()?")
-            return []
-        processed_data = []
+            return SyncExtracted(raw_data=[], targets=[], sequences=[], states=[])
+
+        raw_data: list[BaseGraph] = []
+        targets: list[int] = []
+        sequences: list[pl.Sequence] = []
+        states: list[dict[str, int]] = []
         for compiled in self.sequences:
             qubits_used = len(compiled.sequence.qubit_info)
             if qubits_used > max_qubits:
@@ -212,18 +417,21 @@ class QutipExtractor(BaseExtractor[GraphType]):
                 continue
             logger.debug("Executing compiled graph # %s", id)
             simul = QutipEmulator.from_sequence(sequence=compiled.sequence)
-            states = cast(dict[str, Any], simul.run().sample_final_state())
+            counter = cast(dict[str, Any], simul.run().sample_final_state())
             logger.debug("Execution of compiled graph # %s complete", id)
-            processed_data.append(
-                ProcessedData(
-                    sequence=compiled.sequence, state_dict=states, target=compiled.graph.target
-                )
-            )
+            raw_data.append(compiled.graph)
+            if compiled.graph.target is not None:
+                targets.append(compiled.graph.target)
+            sequences.append(compiled.sequence)
+            states.append(counter)
 
-        logger.debug("Emulation step complete, %s compiled graphs executed", len(processed_data))
-        super().save(snapshot=processed_data)
-
-        return processed_data
+        result = SyncExtracted(
+            raw_data=raw_data, targets=targets, sequences=sequences, states=states
+        )
+        logger.debug("Emulation step complete, %s compiled graphs executed", len(raw_data))
+        if self.path is not None:
+            result.save_dataset(self.path)
+        return result
 
 
 class EmuMPSExtractor(BaseExtractor[GraphType]):
@@ -250,15 +458,15 @@ class EmuMPSExtractor(BaseExtractor[GraphType]):
 
     def __init__(
         self,
-        path: str,
         compiler: BaseGraphCompiler[GraphType],
         device: Device = pl.devices.AnalogDevice,
+        path: str | None = None,
     ):
-        super().__init__(path=path, device=device, compiler=compiler)
+        super().__init__(device=device, compiler=compiler, path=path)
         self.graphs: list[BaseGraph]
         self.device = device
 
-    async def run(self, max_qubits: int = 10, dt: int = 10) -> list[ProcessedData]:
+    def run(self, max_qubits: int = 10, dt: int = 10) -> BaseExtracted:
         """
         Run the compiled graphs.
 
@@ -275,9 +483,13 @@ class EmuMPSExtractor(BaseExtractor[GraphType]):
         """
         if len(self.sequences) == 0:
             logger.warning("No sequences to run, did you forget to call compile()?")
-            return []
+            return SyncExtracted(raw_data=[], targets=[], sequences=[], states=[])
+
         backend = emu_mps.MPSBackend()
-        processed_data = []
+        raw_data = []
+        targets: list[int] = []
+        sequences = []
+        states = []
         for compiled in self.sequences:
             qubits_used = len(compiled.sequence.qubit_info)
             if qubits_used > max_qubits:
@@ -294,20 +506,193 @@ class EmuMPSExtractor(BaseExtractor[GraphType]):
             cutoff_duration = int(ceil(compiled.sequence.get_duration() / dt) * dt)
             observable = emu_mps.BitStrings(evaluation_times={cutoff_duration})
             config = emu_mps.MPSConfig(observables=[observable], dt=dt)
-            states: dict[str, Any] = backend.run(compiled.sequence, config)[observable.name][
+            counter: dict[str, Any] = backend.run(compiled.sequence, config)[observable.name][
                 cutoff_duration
             ]
             logger.debug("Execution of compiled graph # %s complete", id)
-            processed_data.append(
-                ProcessedData(
-                    sequence=compiled.sequence, state_dict=states, target=compiled.graph.target
-                )
-            )
+            raw_data.append(compiled.graph)
+            if compiled.graph.target is not None:
+                targets.append(compiled.graph.target)
+            sequences.append(compiled.sequence)
+            states.append(counter)
 
-        logger.debug("Emulation step complete, %s compiled graphs executed", len(processed_data))
-        super().save(snapshot=processed_data)
+        logger.debug("Emulation step complete, %s compiled graphs executed", len(raw_data))
 
-        return processed_data
+        result = SyncExtracted(
+            raw_data=raw_data, targets=targets, sequences=sequences, states=states
+        )
+        logger.debug("Emulation step complete, %s compiled graphs executed", len(raw_data))
+        if self.path is not None:
+            result.save_dataset(self.path)
+        return result
+
+
+# How many seconds to sleep while waiting for the results from the cloud.
+SLEEP_DELAY_S = 2
+
+
+class CloudExtracted(BaseExtracted):
+    """
+    Data extracted from the cloud API, i.e. we need wait for a remote server.
+
+    Performance note:
+        If your code is meant to be executed as part of an interactive application or
+        a server, you should consider calling `await extracted` before your first call
+        to any of the methods of `extracted`. Otherwise, you will block the main thread.
+
+        If you are running this as part of an experiment, a Jupyter notebook, etc. you
+        do not need to do so.
+    """
+
+    def __init__(
+        self, compiled: list[Compiled], batch_ids: list[str], sdk: SDK, path: str | None = None
+    ):
+        self._compiled = compiled
+        self._batch_ids = batch_ids
+        self._results: SyncExtracted | None = None
+        self._path = path
+        self._sdk = sdk
+
+    def _wait(self) -> None:
+        """
+        Wait synchronously until remote execution is ready.
+
+        This WILL BLOCK your main thread, possibly for a very long time.
+        """
+        if self._results is not None:
+            # Results are already available.
+            return
+        pending_batch_ids: set[str] = set(self._batch_ids)
+        completed_batches: dict[str, Batch] = {}
+        while len(pending_batch_ids) > 0:
+            time.sleep(SLEEP_DELAY_S)
+
+            # Fetch up to 100 pending batches (upstream limits).
+            MAX_BATCH_LEN = 100
+            check_ids: list[str | UUID] = [cast(str | UUID, id) for id in pending_batch_ids][
+                :MAX_BATCH_LEN
+            ]
+
+            # Update their status.
+            check_batches = self._sdk.get_batches(filters=BatchFilters(id=check_ids))
+            for batch in check_batches.results:
+                assert isinstance(batch, Batch)
+                if batch.status not in {"PENDING", "RUNNING"}:
+                    logger.debug("Job %s is now complete", batch.id)
+                    pending_batch_ids.discard(batch.id)
+                    completed_batches[batch.id] = batch
+
+        # At this point, all batches are complete.
+        self._ingest(completed_batches)
+
+    def __await__(self) -> Generator[Any, Any, None]:
+        """
+        Wait asynchronously until remote execution is ready.
+
+        This will NOT block your main thread, so this method is strongly recommended
+        for use on a server or an interactive application.
+
+        Example:
+            await extracted
+        """
+        if self._results is not None:
+            # Results are already available.
+            return
+        pending_batch_ids: set[str] = set(self._batch_ids)
+        completed_batches: dict[str, Batch] = {}
+        while len(pending_batch_ids) > 0:
+            yield from asyncio.sleep(SLEEP_DELAY_S).__await__()
+
+            # Fetch up to 100 pending batches (upstream limits).
+            MAX_BATCH_LEN = 100
+            check_ids: list[str | UUID] = [cast(str | UUID, id) for id in pending_batch_ids][
+                :MAX_BATCH_LEN
+            ]
+
+            # Update their status.
+            check_batches = self._sdk.get_batches(
+                filters=BatchFilters(id=check_ids)
+            )  # Ideally, this should be async, see https://github.com/pasqal-io/pasqal-cloud/issues/162.
+            for batch in check_batches.results:
+                assert isinstance(batch, Batch)
+                if batch.status not in {"PENDING", "RUNNING"}:
+                    logger.debug("Job %s is now complete", batch.id)
+                    pending_batch_ids.discard(batch.id)
+                    completed_batches[batch.id] = batch
+
+        # At this point, all batches are complete.
+        self._ingest(completed_batches)
+
+    def _ingest(self, batches: dict[str, Batch]) -> None:
+        """
+        Ingest data received from the remote server.
+
+        No I/O.
+        """
+        assert len(batches) == len(self._batch_ids)
+
+        raw_data = []
+        targets: list[int] = []
+        sequences = []
+        states = []
+        for i, id in enumerate(self._batch_ids):
+            batch = batches[id]
+            compiled = self._compiled[i]
+            # Note: There's only one job per batch.
+            assert len(batch.jobs) == 1
+            for _, job in batch.jobs.items():
+                if job.status == "DONE":
+                    state_dict = job.result
+                    assert state_dict is not None
+                    raw_data.append(compiled.graph)
+                    if compiled.graph.target is not None:
+                        targets.append(compiled.graph.target)
+                    sequences.append(compiled.sequence)
+                    states.append(state_dict)
+                else:
+                    # If some sequences failed, let's skip them and proceed as well as we can.
+                    logger.warning(
+                        "Batch %s (graph %s) failed with errors %s, skipping",
+                        i,
+                        compiled.graph.id,
+                        job.status,
+                        job.errors,
+                    )
+        self._results = SyncExtracted(
+            raw_data=raw_data, targets=targets, sequences=sequences, states=states
+        )
+        if self._path is not None:
+            self.save_dataset(self._path)
+
+    @property
+    def processed_data(self) -> list[ProcessedData]:
+        self._wait()
+        assert self._results is not None
+        return self._results.processed_data
+
+    @property
+    def raw_data(self) -> list[BaseGraph]:
+        self._wait()
+        assert self._results is not None
+        return self._results.raw_data
+
+    @property
+    def targets(self) -> list[int] | None:
+        self._wait()
+        assert self._results is not None
+        return self._results.targets
+
+    @property
+    def sequences(self) -> list[pl.Sequence]:
+        self._wait()
+        assert self._results is not None
+        return self._results.sequences
+
+    @property
+    def states(self) -> list[dict[str, int]]:
+        self._wait()
+        assert self._results is not None
+        return self._results.states
 
 
 class QPUExtractor(BaseExtractor[GraphType]):
@@ -335,13 +720,13 @@ class QPUExtractor(BaseExtractor[GraphType]):
 
     def __init__(
         self,
-        path: str,
         compiler: BaseGraphCompiler[GraphType],
         project_id: str,
         username: str,
         password: str | None = None,
         device_name: str = "FRESNEL",
         batch_ids: list[str] | None = None,
+        path: str | None = None,
     ):
         sdk = SDK(username=username, project_id=project_id, password=password)
 
@@ -349,7 +734,7 @@ class QPUExtractor(BaseExtractor[GraphType]):
         specs = sdk.get_device_specs_dict()
         device = cast(Device, deserialize_device(specs[device_name]))
 
-        super().__init__(path=path, device=device, compiler=compiler)
+        super().__init__(device=device, compiler=compiler, path=path)
         self._sdk = sdk
         self._batch_ids: list[str] | None = batch_ids
 
@@ -357,13 +742,13 @@ class QPUExtractor(BaseExtractor[GraphType]):
     def batch_ids(self) -> list[str] | None:
         return self._batch_ids
 
-    async def run(self) -> list[ProcessedData]:
+    def run(self) -> CloudExtracted:
         if len(self.sequences) == 0:
             logger.warning("No sequences to run, did you forget to call compile()?")
-            return []
+            return CloudExtracted(compiled=[], batch_ids=[], sdk=self._sdk, path=self.path)
 
         device: pl.devices.Device = self.sequences[0].sequence.device
-        # The API doesn't support run longer than 500 jobs.
+        # As of this writing, the API doesn't support run longer than 500 jobs.
         # If we want to add more runs, we'll need to split them across several jobs.
         max_runs = device.max_runs if isinstance(device.max_runs, int) else 500
 
@@ -390,57 +775,6 @@ class QPUExtractor(BaseExtractor[GraphType]):
             )
         assert len(self._batch_ids) == len(self.sequences)
 
-        # Now wait until all batches are complete.
-        pending_batch_ids: set[str] = set(self._batch_ids)
-        completed_batches: dict[str, Batch] = {}
-
-        while len(pending_batch_ids) > 0:
-            await sleep(delay=2)
-            # We can check up to 100 batches in a single query with the SDK, so let's do that.
-            MAX_BATCH_LEN = 100
-            check_ids: list[str | UUID] = [cast(str | UUID, id) for id in pending_batch_ids][
-                :MAX_BATCH_LEN
-            ]
-            # Update their status.
-            check_batches = self._sdk.get_batches(
-                filters=BatchFilters(id=check_ids)
-            )  # Ideally, this should be async, see https://github.com/pasqal-io/pasqal-cloud/issues/162.
-            for batch in check_batches.results:
-                assert isinstance(batch, Batch)
-                if batch.status not in {"PENDING", "RUNNING"}:
-                    logger.debug("Job %s is now complete", batch.id)
-                    pending_batch_ids.discard(batch.id)
-                    completed_batches[batch.id] = batch
-
-        logger.info("All jobs complete, %s sequences executed", len(completed_batches))
-
-        # At this point, all batches are complete.
-        # Now, collect data.
-        #
-        # We rely upon the fact that for any `i`,
-        # `self._batch_id[i]` is the batch for `self.sequences[i]`.
-        processed_data: list[ProcessedData] = []
-        for i, id in enumerate(self._batch_ids):
-            batch = completed_batches[id]
-            assert len(batch.jobs) == 1
-
-            for _, job in batch.jobs.items():
-                if job.status == "DONE":
-                    state_dict = job.result
-                    assert state_dict is not None
-                    processed_data.append(
-                        ProcessedData(
-                            sequence=self.sequences[i].sequence,
-                            state_dict=state_dict,
-                            target=self.sequences[i].graph.target,
-                        )
-                    )
-                else:
-                    # If some sequences failed, let's proceed as well as we can.
-                    logger.warning(
-                        "Job %s failed with errors %s, skipping", i, job.status, job.errors
-                    )
-
-        logger.info("All jobs complete, %s sequences succeeded", len(processed_data))
-        super().save(snapshot=processed_data)
-        return processed_data
+        return CloudExtracted(
+            compiled=self.sequences, batch_ids=self._batch_ids, sdk=self._sdk, path=self.path
+        )

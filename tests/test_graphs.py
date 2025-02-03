@@ -10,8 +10,8 @@ from torch_geometric.data import Data
 
 from qek.data.graphs import (
     BaseGraph,
-    MoleculeGraph,
-    MoleculeGraphCompiler,
+    PTCFMCompiler,
+    PTCFMGraph,
     PygWithPosCompiler,
     NXGraphCompiler,
     NXWithPos,
@@ -27,7 +27,7 @@ def test_graph_init() -> None:
     # Check that `add_graph_coord` doesn't break with this dataset.
 
     for i, data in enumerate(original_ptcfm_data):
-        graph = MoleculeGraph(data=data, device=pulser.AnalogDevice, id=i)
+        graph = PTCFMGraph(data=data, device=pulser.AnalogDevice, id=i)
 
         # Make sure that the graph has been augmented with "pos".
         assert hasattr(graph.pyg, "pos")
@@ -44,7 +44,7 @@ def test_graph_init() -> None:
         assert nx.is_isomorphic(nx_graph, nx_reconstruct)
 
     # The first graph from the dataset is known to be embeddable.
-    graph = MoleculeGraph(data=original_ptcfm_data[0], device=pulser.AnalogDevice, id=9999)
+    graph = PTCFMGraph(data=original_ptcfm_data[0], device=pulser.AnalogDevice, id=9999)
     assert graph.is_disk_graph(pulser.AnalogDevice.min_atom_distance + 0.01)
 
 
@@ -265,7 +265,7 @@ def test_basic_compile() -> None:
     assert (ingested.pyg.pos == saved_pyg_pos_ingested.pyg.pos).all()
 
     # Testing MoleculeGraphCompiler
-    molecule_graph_compiler = MoleculeGraphCompiler()
+    molecule_graph_compiler = PTCFMCompiler()
     ingested = molecule_graph_compiler.ingest(
         graph=original_ptcfm_data[0], device=pulser.AnalogDevice, id=9
     )
