@@ -65,7 +65,7 @@ jobs:
         run: |
           hatch run pip install jupyter
           for tutorial in examples/tutorial*.ipynb; do
-            hatch run jupyter execute $tutorial;
+            hatch run jupyter execute "$tutorial";
           done
 
   publish:
