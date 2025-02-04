@@ -10,12 +10,15 @@ import time
 from typing import Any, Callable, Generator, Generic, Sequence, TypeVar, cast
 import emu_mps
 from numpy.typing import NDArray
-from pasqal_cloud import SDK, Batch, BatchFilters
+from pasqal_cloud import SDK
+from pasqal_cloud.batch import Batch
+from pasqal_cloud.utils.filters import BatchFilters
 import numpy as np
 import pulser as pl
 from pulser.devices import Device
 from pulser.json.abstract_repr.deserializer import deserialize_device
 from pulser_simulation import QutipEmulator
+from torch.utils.data import Dataset
 
 from qek.data import dataset
 from qek.data.graphs import BaseGraph, BaseGraphCompiler
@@ -318,7 +321,7 @@ class BaseExtractor(abc.ABC, Generic[GraphType]):
         logger.debug("Compilation step complete, %s graphs compiled", len(self.sequences))
         return self.sequences
 
-    def add_graphs(self, graphs: Sequence[GraphType]) -> None:
+    def add_graphs(self, graphs: Sequence[GraphType] | Dataset[GraphType]) -> None:
         """
         Add new graphs to compile and run.
         """
