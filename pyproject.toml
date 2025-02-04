@@ -62,6 +62,7 @@ dependencies = [
   "pytest-cov",
   "pytest-xdist",
   "pytest-asyncio",
+  "pytest-markdown-docs",
   "nbconvert",
   "ipykernel",
   "pre-commit",
@@ -72,11 +73,12 @@ dependencies = [
 ]
 
 [tool.hatch.envs.default.scripts]
-test = "pytest -n auto --cov-report=term-missing --cov-config=pyproject.toml --cov=qek --cov=tests --ignore=./tests/test_examples.py --ignore=./tests/test_notebooks.py {args}"
+test = "pytest -n auto --cov-report=term-missing --cov-config=pyproject.toml --cov=qek --cov=tests --markdown-docs {args}"
+test_readme = "pytest --markdown-docs README.md"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = """-vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=qek --cov=tests"""
+addopts = """-vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=qek --cov=tests --markdown-docs"""
 xfail_strict = true
 filterwarnings = [
   "ignore:Call to deprecated create function FieldDescriptor",
