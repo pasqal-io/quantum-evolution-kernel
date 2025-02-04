@@ -43,12 +43,39 @@ jobs:
         path: .coverage.*
         if-no-files-found: ignore
 
-  test_notebook:
-    name: Run the Jupyter notebook tutorials
+  test_notebook_unix:
+    name: Run the Jupyter notebook tutorials (Unix)
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubutu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - name: Checkout QEK
+        uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Hatch
+        run: |
+          pip install hatch
+      - name: Copy samples
+        run: |
+          cp examples/ptcfm_processed_dataset.json .
+      - name: Run notebooks
+        run: |
+          hatch run pip install jupyter
+          for tutorial in examples/tutorial*.ipynb; do
+            hatch run jupyter execute "$tutorial";
+          done
+
+  test_notebook_windows:
+    name: Run the Jupyter notebook tutorial (Windows)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest]
         python-version: ["3.10", "3.11", "3.12"]
     steps:
       - name: Checkout QEK
@@ -66,9 +93,9 @@ jobs:
       - name: Run notebook
         run: |
           hatch run pip install jupyter
-          for tutorial in examples/tutorial*.ipynb; do
-            hatch run jupyter execute "$tutorial";
-          done
+          foreach($tutorial in examples/tutorial*.ipynb) {
+            hatch run jupyter execute "$tutorial"
+          }
 
   publish:
     name: Publish to PyPI
