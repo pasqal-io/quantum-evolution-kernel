@@ -4,7 +4,12 @@ import os
 import pytest
 import torch_geometric.data as pyg_data
 import torch_geometric.datasets as pyg_dataset
-from qek.data.extractors import QutipExtractor, EmuMPSExtractor, BaseExtracted
+from qek.data.extractors import QutipExtractor, BaseExtracted
+
+if os.name == "posix":
+    # As of this writing, emu-mps only works under Unix.
+    from qek.data.extractors import EmuMPSExtractor
+
 from qek.data.graphs import PTCFMCompiler
 
 
