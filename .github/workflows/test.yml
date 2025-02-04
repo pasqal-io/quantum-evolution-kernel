@@ -64,7 +64,7 @@ jobs:
       - name: Run notebook
         run: |
           hatch run pip install jupyter
-          for tutorial in examples/tutorial*.ipyng; do
+          for tutorial in examples/tutorial*.ipynb; do
             hatch run jupyter execute $tutorial;
           done
 
