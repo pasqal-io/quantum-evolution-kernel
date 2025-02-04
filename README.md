@@ -60,8 +60,7 @@ extractor.add_graphs(graphs=og_ptcfm)
 extractor.compile()
 processed_dataset = extractor.run().processed_data
 
-# Prepare for machine learning.
-
+# Prepare a machine learning pipeline with Scikit Learn.
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 
