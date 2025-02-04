@@ -93,7 +93,8 @@ jobs:
       - name: Run notebook
         run: |
           hatch run pip install jupyter
-          foreach($tutorial in examples/tutorial*.ipynb) {
+          $files = Get-ChildItem -Path examples -Include *.ipynb
+          foreach($tutorial in $files) {
             hatch run jupyter execute "$tutorial"
           }
 
