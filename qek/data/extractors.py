@@ -26,6 +26,7 @@ from torch.utils.data import Dataset
 from qek.data import dataset
 from qek.data.graphs import BaseGraph, BaseGraphCompiler
 from qek.data.dataset import ProcessedData
+from qek.shared.error import CompilationError
 
 logger = logging.getLogger(__name__)
 
@@ -99,13 +100,6 @@ class BaseExtracted(abc.ABC):
         pass
 
     @property
-    def sequences(self) -> list[pl.Sequence]:
-        """
-        The sequences compiled from `raw_data`, in the same order and with the same number of entries as `raw_data`.
-        """
-        return [data.sequence for data in self.processed_data]
-
-    @property
     def states(self) -> list[dict[str, int]]:
         """
         The quantum states extracted from `raw_data` by executing `sequences` on the device, in the same order and with the same number of entries as `raw_data`.
@@ -128,7 +122,8 @@ class BaseExtracted(abc.ABC):
                 If unspecified, use the largest number of qubits in `selfsequences`.
         """
         if size_max is None:
-            for seq in self.sequences:
+            for data in self.processed_data:
+                seq = data._sequence
                 if size_max is None or len(seq.qubit_info) > size_max:
                     size_max = len(seq.qubit_info)
         if size_max is None:
@@ -151,12 +146,11 @@ class BaseExtracted(abc.ABC):
             The data is stored in a format suitable for loading with load_dataset.
         """
         with open(file_path, "w") as file:
-            sequences = self.sequences
             states = self.states
             targets = self.targets
             data = [
                 {
-                    "sequence": sequences[i].to_abstract_repr(),
+                    "sequence": self.processed_data[i]._sequence.to_abstract_repr(),
                     # Some emulators will actually be `dict[str, int64]` instead of `dict[str, int]` and `int64`
                     # is not JSON-serializable.
                     #
@@ -168,7 +162,7 @@ class BaseExtracted(abc.ABC):
                     "state_dict": {key: int(value) for (key, value) in states[i].items()},
                     "target": targets[i] if targets is not None else None,
                 }
-                for i in range(len(sequences))
+                for i in range(len(self.processed_data))
             ]
             json.dump(data, file)
         logger.info("processed data saved to %s", file_path)
@@ -285,7 +279,7 @@ class BaseExtractor(abc.ABC, Generic[GraphType]):
             with open(self.path, "w") as file:
                 data = [
                     {
-                        "sequence": instance.sequence.to_abstract_repr(),
+                        "sequence": instance._sequence.to_abstract_repr(),
                         "state_dict": instance.state_dict,
                         "target": instance.target,
                     }
@@ -309,8 +303,12 @@ class BaseExtractor(abc.ABC, Generic[GraphType]):
         self.sequences = []
         for graph in self.graphs:
             try:
-                sequence = graph.compute_sequence()
-            except ValueError as e:
+                register = graph.compile_register()
+                pulse = graph.compile_pulse()
+                sequence = pl.Sequence(register=register, device=graph.device)
+                sequence.declare_channel("ising", "rydberg_global")
+                sequence.add(pulse, "ising")
+            except CompilationError as e:
                 # In some cases, we produce graphs that pass `is_embeddable` but cannot be compiled.
                 # It _looks_ like this is due to rounding errors. We're investigating this in issue #29,
                 # but for the time being, we're simply logging and skipping them.

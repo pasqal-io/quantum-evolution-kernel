@@ -14,6 +14,7 @@ import torch_geometric.data as pyg_data
 import torch_geometric.utils as pyg_utils
 from rdkit.Chem import AllChem
 
+from qek.shared.error import CompilationError
 from qek.utils import graph_to_mol
 
 logger = logging.getLogger(__name__)
@@ -187,48 +188,60 @@ class BaseGraph:
 
         return True
 
-    def compute_register(self) -> pl.Register:
-        """Create a Quantum Register based on a graph.
-
-        Returns:
-            pulser.Register: register
-        """
-        pos = self.pyg.pos
-        assert pos is not None
-        return pl.Register.from_coordinates(coords=pos)
-
     # Default values for the sequence.
     #
     # See the companion paper for an explanation.
     SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US = 1.0 * 2 * np.pi
     SEQUENCE_DEFAULT_DURATION_NS = 660
 
-    def compute_sequence(
-        self,
+    def compute_register(self) -> pl.Register:
+        """Create a Quantum Register based on a graph.
+
+        Returns:
+            pulser.Register: register
+        """
+        # Note: In the low-level API, we separate register and pulse compilation for
+        # pedagogical reasons, because we want to take the opportunity to teach them
+        # about registers and pulses, rather than pulser sequences.
+
+        if not self.is_embeddable():
+            raise CompilationError(f"The graph is not compatible with {self.device}")
+
+        # Compile register
+        pos = self.pyg.pos
+        assert pos is not None
+        reg = pl.Register.from_coordinates(coords=pos)
+        if self.device.requires_layout:
+            reg = reg.with_automatic_layout(device=self.device)
+
+        try:
+            # Due to issue #29, we can produce a register that will not work on this device,
+            # so we need to perform a second check.
+            pl.Sequence(register=reg, device=self.device)
+        except ValueError as e:
+            raise CompilationError(f"The graph is not compatible with {self.device}: {e}")
+        return reg
+
+
+    def compile_pulse(self,
         amplitude: float = SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US,
         duration: int = SEQUENCE_DEFAULT_DURATION_NS,
-    ) -> pl.Sequence:
-        """
-        Compile a Quantum Sequence from a graph for a specific device,
-        using the geometry provided by `compute_register`.
+) -> pl.Pulse:
+        """Extract a Pulse for this graph.
+
+        A Pulse represents the laser applied to the atoms on the device.
 
         Arguments:
             amplitude: The amplitude for the laser pulse, in rad per microseconds.
                 By default, use the value demonstrated in the companion paper.
             duration: The duration of the laser pulse, in nanoseconds.
                 By default, use the value demonstrated in the companion paper.
-
-        Raises:
-            ValueError if the graph cannot be embedded on the given device.
         """
-        if not self.is_embeddable():
-            raise ValueError(f"The graph is not compatible with {self.device}")
-        reg = self.compute_register()
-        if self.device.requires_layout:
-            reg = reg.with_automatic_layout(device=self.device)
+        # Note: In the low-level API, we separate register and pulse compilation for
+        # pedagogical reasons, because we want to take the opportunity to teach them
+        # about registers and pulses, rather than pulser sequences.
 
-        seq = pl.Sequence(register=reg, device=self.device)
-
+        # See the companion paper for an explanation on these constants.
         Omega_max = amplitude
         t_max = duration
         pulse = pl.Pulse.ConstantAmplitude(
@@ -236,9 +249,8 @@ class BaseGraph:
             detuning=pl.waveforms.RampWaveform(t_max, 0, 0),
             phase=0.0,
         )
-        seq.declare_channel("ising", "rydberg_global")
-        seq.add(pulse, "ising")
-        return seq
+        return pulse
+
 
 
 class MoleculeGraph(BaseGraph):

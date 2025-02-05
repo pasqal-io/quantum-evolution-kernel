@@ -78,7 +78,7 @@ class QuantumEvolutionKernel:
                 sources = [X1, X2]
             for source in sources:
                 for data in source:
-                    length = len(data.sequence.qubit_info)
+                    length = len(data._sequence.qubit_info)
                     if size_max is None or size_max <= length:
                         size_max = length
 
