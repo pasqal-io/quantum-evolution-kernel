@@ -204,7 +204,9 @@ class BaseGraph:
     SEQUENCE_DEFAULT_DURATION_NS = 660
 
     def compute_sequence(
-        self, amplitude: float = SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US, duration: int = 660
+        self,
+        amplitude: float = SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US,
+        duration: int = SEQUENCE_DEFAULT_DURATION_NS,
     ) -> pl.Sequence:
         """
         Compile a Quantum Sequence from a graph for a specific device,
