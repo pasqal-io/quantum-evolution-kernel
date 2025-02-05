@@ -197,9 +197,26 @@ class BaseGraph:
         assert pos is not None
         return pl.Register.from_coordinates(coords=pos)
 
-    def compute_sequence(self) -> pl.Sequence:
+    # Default values for the sequence.
+    #
+    # See the companion paper for an explanation.
+    SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US = 1.0 * 2 * np.pi
+    SEQUENCE_DEFAULT_DURATION_NS = 660
+
+    def compute_sequence(
+        self,
+        amplitude: float = SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US,
+        duration: int = SEQUENCE_DEFAULT_DURATION_NS,
+    ) -> pl.Sequence:
         """
-        Compile a Quantum Sequence from a graph for a specific device.
+        Compile a Quantum Sequence from a graph for a specific device,
+        using the geometry provided by `compute_register`.
+
+        Arguments:
+            amplitude: The amplitude for the laser pulse, in rad per microseconds.
+                By default, use the value demonstrated in the companion paper.
+            duration: The duration of the laser pulse, in nanoseconds.
+                By default, use the value demonstrated in the companion paper.
 
         Raises:
             ValueError if the graph cannot be embedded on the given device.
@@ -212,9 +229,8 @@ class BaseGraph:
 
         seq = pl.Sequence(register=reg, device=self.device)
 
-        # See the companion paper for an explanation on these constants.
-        Omega_max = 1.0 * 2 * np.pi
-        t_max = 660
+        Omega_max = amplitude
+        t_max = duration
         pulse = pl.Pulse.ConstantAmplitude(
             amplitude=Omega_max,
             detuning=pl.waveforms.RampWaveform(t_max, 0, 0),
