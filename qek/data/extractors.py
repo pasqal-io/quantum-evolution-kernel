@@ -12,6 +12,8 @@ import emu_mps
 from numpy.typing import NDArray
 from pasqal_cloud import SDK
 from pasqal_cloud.batch import Batch
+from pasqal_cloud.device import BaseConfig, EmuTNConfig, EmulatorType
+from pasqal_cloud.job import Job
 from pasqal_cloud.utils.filters import BatchFilters
 import numpy as np
 import pulser as pl
@@ -534,7 +536,7 @@ class EmuMPSExtractor(BaseExtractor[GraphType]):
 SLEEP_DELAY_S = 2
 
 
-class CloudExtracted(BaseExtracted):
+class PasqalCloudExtracted(BaseExtracted):
     """
     Data extracted from the cloud API, i.e. we need wait for a remote server.
 
@@ -548,13 +550,29 @@ class CloudExtracted(BaseExtracted):
     """
 
     def __init__(
-        self, compiled: list[Compiled], batch_ids: list[str], sdk: SDK, path: str | None = None
+        self,
+        compiled: list[Compiled],
+        batch_ids: list[str],
+        sdk: SDK,
+        state_extractor: Callable[[Job, pl.Sequence], dict[str, int] | None],
+        path: str | None = None,
     ):
+        """
+        Prepare for reception of data.
+
+        Arguments:
+            compiled: The sequences, graphs, optionsl targets, ...
+            batch_ids: The ids of the batches on the cloud API, in the same order as `compiled`.
+            state_extractor: A callback used to extract the counter from a job.
+                Used as various cloud back-ends return different formats.
+            path: If provided, a path at which to save the results once they're available.
+        """
         self._compiled = compiled
         self._batch_ids = batch_ids
         self._results: SyncExtracted | None = None
         self._path = path
         self._sdk = sdk
+        self._state_extractor = state_extractor
 
     def _wait(self) -> None:
         """
@@ -645,8 +663,14 @@ class CloudExtracted(BaseExtracted):
             assert len(batch.jobs) == 1
             for _, job in batch.jobs.items():
                 if job.status == "DONE":
-                    state_dict = job.result
-                    assert state_dict is not None
+                    state_dict = self._state_extractor(job, compiled.sequence)
+                    if state_dict is None:
+                        logger.warning(
+                            "Batch %s (graph %s) did not return a usable state, skipping",
+                            i,
+                            compiled.graph.id,
+                        )
+                        continue
                     raw_data.append(compiled.graph)
                     if compiled.graph.target is not None:
                         targets.append(compiled.graph.target)
@@ -698,14 +722,138 @@ class CloudExtracted(BaseExtracted):
         return self._results.states
 
 
-class QPUExtractor(BaseExtractor[GraphType]):
+class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
     """
-    A Extractor that uses a distant physical QPU to run sequences
-    compiled from graphs.
+    An Extractor that uses a distant a Quantum Device published
+    through Pasqal Cloud, to run sequences compiled from graphs.
 
-    Performance note: as of this writing, the waiting lines for a QPU
-    may be very long. You may use this Extractor to resume your workflow
-    with a computation that has been previously started.
+    Performance note (servers and interactive applications only):
+        If your code is meant to be executed as part of an interactive application or
+        a server, you should consider calling `await extracted` before your first call
+        to any of the methods of `extracted`. Otherwise, you will block the main thread.
+
+        If you are running this as part of an experiment, a Jupyter notebook, etc. you
+        may ignore this performance note.
+
+    Args:
+        path: Path to store the result of the run, for future uses.
+            To reload the result of a previous run, use `LoadExtractor`.
+        project_id: The ID of the project on the Pasqal Cloud API.
+        username: Your username on the Pasqal Cloud API.
+        password: Your password on the Pasqal Cloud API. If you leave
+            this to None, you will need to enter your password manually.
+        device_name: The name of the device to use. As of this writing,
+            the default value of "FRESNEL" represents the latest QPU
+            available through the Pasqal Cloud API.
+        batch_id: Use this to resume a workflow e.g. after turning off
+            your computer while the QPU was executing your sequences.
+    """
+
+    def __init__(
+        self,
+        compiler: BaseGraphCompiler[GraphType],
+        device_name: str,
+        project_id: str,
+        username: str,
+        password: str | None = None,
+        batch_ids: list[str] | None = None,
+        path: str | None = None,
+    ):
+        sdk = SDK(username=username, project_id=project_id, password=password)
+
+        # Fetch the latest list of QPUs
+        specs = sdk.get_device_specs_dict()
+        device = cast(Device, deserialize_device(specs[device_name]))
+
+        super().__init__(device=device, compiler=compiler, path=path)
+        self._sdk = sdk
+        self._batch_ids: list[str] | None = batch_ids
+
+    @property
+    def batch_ids(self) -> list[str] | None:
+        return self._batch_ids
+
+    @abc.abstractmethod
+    def run(
+        self,
+    ) -> PasqalCloudExtracted:
+        """
+        Launch the extraction.
+        """
+        raise Exception("Not implemented")
+
+    def _run(
+        self,
+        state_extractor: Callable[[Job, pl.Sequence], dict[str, int] | None],
+        emulator: EmulatorType | None,
+        config: BaseConfig | None,
+    ) -> PasqalCloudExtracted:
+        if len(self.sequences) == 0:
+            logger.warning("No sequences to run, did you forget to call compile()?")
+            return PasqalCloudExtracted(
+                compiled=[],
+                batch_ids=[],
+                sdk=self._sdk,
+                path=self.path,
+                state_extractor=state_extractor,
+            )
+
+        device: pl.devices.Device = self.sequences[0].sequence.device
+        # As of this writing, the API doesn't support runs longer than 500 jobs.
+        # If we want to add more runs, we'll need to split them across several jobs.
+        max_runs = device.max_runs if isinstance(device.max_runs, int) else 500
+
+        if self._batch_ids is None:
+            # Enqueue jobs.
+            self._batch_ids = []
+            for compiled in self.sequences:
+                logger.debug("Enqueuing execution of compiled graph #%s", compiled.graph.id)
+                batch = self._sdk.create_batch(
+                    compiled.sequence.to_abstract_repr(),
+                    jobs=[{"runs": max_runs}],
+                    wait=False,
+                    emulator=emulator,
+                    configuration=config,
+                )
+                logger.info(
+                    "Remote execution of compiled graph #%s starting, batched with id %s",
+                    compiled.graph.id,
+                    batch.id,
+                )
+                self._batch_ids.append(batch.id)
+            logger.info(
+                "All %s jobs enqueued for remote execution, with ids %s",
+                len(self._batch_ids),
+                self._batch_ids,
+            )
+        assert len(self._batch_ids) == len(self.sequences)
+
+        return PasqalCloudExtracted(
+            compiled=self.sequences,
+            batch_ids=self._batch_ids,
+            sdk=self._sdk,
+            path=self.path,
+            state_extractor=state_extractor,
+        )
+
+
+class RemoteQPUExtractor(BaseRemoteExtractor[GraphType]):
+    """
+    An Extractor that uses a distant a QPU published
+    through Pasqal Cloud, to run sequences compiled from graphs.
+
+    Performance note:
+        as of this writing, the waiting lines for a QPU
+        may be very long. You may use this Extractor to resume your workflow
+        with a computation that has been previously started.
+
+    Performance note (servers and interactive applications only):
+        If your code is meant to be executed as part of an interactive application or
+        a server, you should consider calling `await extracted` before your first call
+        to any of the methods of `extracted`. Otherwise, you will block the main thread.
+
+        If you are running this as part of an experiment, a Jupyter notebook, etc. you
+        may ignore this performance note.
 
     Args:
         path: Path to store the result of the run, for future uses.
@@ -726,58 +874,88 @@ class QPUExtractor(BaseExtractor[GraphType]):
         compiler: BaseGraphCompiler[GraphType],
         project_id: str,
         username: str,
-        password: str | None = None,
         device_name: str = "FRESNEL",
+        password: str | None = None,
         batch_ids: list[str] | None = None,
         path: str | None = None,
     ):
-        sdk = SDK(username=username, project_id=project_id, password=password)
+        super().__init__(
+            compiler=compiler,
+            project_id=project_id,
+            username=username,
+            device_name=device_name,
+            password=password,
+            batch_ids=batch_ids,
+            path=path,
+        )
 
-        # Fetch the latest list of QPUs
-        specs = sdk.get_device_specs_dict()
-        device = cast(Device, deserialize_device(specs[device_name]))
+    def run(self) -> PasqalCloudExtracted:
+        return self._run(emulator=None, config=None, state_extractor=lambda job, _seq: job.result)
 
-        super().__init__(device=device, compiler=compiler, path=path)
-        self._sdk = sdk
-        self._batch_ids: list[str] | None = batch_ids
 
-    @property
-    def batch_ids(self) -> list[str] | None:
-        return self._batch_ids
+class RemoteEmuMPSExtractor(BaseRemoteExtractor[GraphType]):
+    """
+    An Extractor that uses the high-performance distributed emu-mps emulator
+    through Pasqal Cloud, to run sequences compiled from graphs.
 
-    def run(self) -> CloudExtracted:
-        if len(self.sequences) == 0:
-            logger.warning("No sequences to run, did you forget to call compile()?")
-            return CloudExtracted(compiled=[], batch_ids=[], sdk=self._sdk, path=self.path)
+    Performance note (servers and interactive applications only):
+        If your code is meant to be executed as part of an interactive application or
+        a server, you should consider calling `await extracted` before your first call
+        to any of the methods of `extracted`. Otherwise, you will block the main thread.
 
-        device: pl.devices.Device = self.sequences[0].sequence.device
-        # As of this writing, the API doesn't support run longer than 500 jobs.
-        # If we want to add more runs, we'll need to split them across several jobs.
-        max_runs = device.max_runs if isinstance(device.max_runs, int) else 500
+        If you are running this as part of an experiment, a Jupyter notebook, etc. you
+        may ignore this performance note.
 
-        if self._batch_ids is None:
-            # Enqueue jobs.
-            self._batch_ids = []
-            for compiled in self.sequences:
-                logger.debug("Enqueuing execution of compiled graph #%s", compiled.graph.id)
-                batch = self._sdk.create_batch(
-                    compiled.sequence.to_abstract_repr(),
-                    jobs=[{"runs": max_runs}],
-                    wait=False,
-                )
-                logger.info(
-                    "Remote execution of compiled graph #%s starting, batched with id %s",
-                    compiled.graph.id,
-                    batch.id,
-                )
-                self._batch_ids.append(batch.id)
-            logger.info(
-                "All %s jobs enqueued for remote execution, with ids %s",
-                len(self._batch_ids),
-                self._batch_ids,
-            )
-        assert len(self._batch_ids) == len(self.sequences)
+    Args:
+        path: Path to store the result of the run, for future uses.
+            To reload the result of a previous run, use `LoadExtractor`.
+        project_id: The ID of the project on the Pasqal Cloud API.
+        username: Your username on the Pasqal Cloud API.
+        password: Your password on the Pasqal Cloud API. If you leave
+            this to None, you will need to enter your password manually.
+        device_name: The name of the device to use. As of this writing,
+            the default value of "FRESNEL" represents the latest QPU
+            available through the Pasqal Cloud API.
+        batch_id: Use this to resume a workflow e.g. after turning off
+            your computer while the QPU was executing your sequences.
+    """
 
-        return CloudExtracted(
-            compiled=self.sequences, batch_ids=self._batch_ids, sdk=self._sdk, path=self.path
+    def __init__(
+        self,
+        compiler: BaseGraphCompiler[GraphType],
+        project_id: str,
+        username: str,
+        device_name: str = "FRESNEL",
+        password: str | None = None,
+        batch_ids: list[str] | None = None,
+        path: str | None = None,
+    ):
+        super().__init__(
+            compiler=compiler,
+            project_id=project_id,
+            username=username,
+            device_name=device_name,
+            password=password,
+            batch_ids=batch_ids,
+            path=path,
+        )
+
+    def run(self, dt: int = 10) -> PasqalCloudExtracted:
+        def extractor(job: Job, sequence: pl.Sequence) -> dict[str, int] | None:
+            cutoff_duration = int(ceil(sequence.get_duration() / dt) * dt)
+            full_result = job.full_result
+            if full_result is None:
+                return None
+            result = full_result["bitstring"][cutoff_duration]
+            if result is None:
+                return None
+            assert isinstance(result, dict)
+            return result
+
+        return self._run(
+            emulator=EmulatorType.EMU_TN,
+            config=EmuTNConfig(
+                dt=dt,
+            ),
+            state_extractor=extractor,
         )
