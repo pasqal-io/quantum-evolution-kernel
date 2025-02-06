@@ -15,6 +15,7 @@ from pasqal_cloud.batch import Batch
 from pasqal_cloud.device import BaseConfig, EmuTNConfig, EmulatorType
 from pasqal_cloud.job import Job
 from pasqal_cloud.utils.filters import BatchFilters
+from pathlib import Path
 import numpy as np
 import pulser as pl
 from pulser.devices import Device
@@ -136,14 +137,14 @@ class BaseExtracted(abc.ABC):
 
         return [Feature(dataset.dist_excitation(state, size_max)) for state in self.states]
 
-    def save_dataset(self, file_path: str) -> None:
+    def save_dataset(self, file_path: Path) -> None:
         """Saves the processed dataset to a JSON file.
 
         Note: This does NOT attempt to save the graphs.
 
         Args:
             dataset: The dataset to be saved.
-            file_path (str): The path where the dataset will be saved as a JSON
+            file_path: The path where the dataset will be saved as a JSON
                 file.
 
         Note:
@@ -251,7 +252,7 @@ class BaseExtractor(abc.ABC, Generic[GraphType]):
     """
 
     def __init__(
-        self, device: Device, compiler: BaseGraphCompiler[GraphType], path: str | None = None
+        self, device: Device, compiler: BaseGraphCompiler[GraphType], path: Path | None = None
     ) -> None:
         self.path = path
 
@@ -382,7 +383,7 @@ class QutipExtractor(BaseExtractor[GraphType]):
         self,
         compiler: BaseGraphCompiler[GraphType],
         device: Device = pl.devices.AnalogDevice,
-        path: str | None = None,
+        path: Path | None = None,
     ):
         super().__init__(path=path, device=device, compiler=compiler)
         self.graphs: list[BaseGraph]
@@ -465,7 +466,7 @@ class EmuMPSExtractor(BaseExtractor[GraphType]):
         self,
         compiler: BaseGraphCompiler[GraphType],
         device: Device = pl.devices.AnalogDevice,
-        path: str | None = None,
+        path: Path | None = None,
     ):
         super().__init__(device=device, compiler=compiler, path=path)
         self.graphs: list[BaseGraph]
@@ -555,13 +556,13 @@ class PasqalCloudExtracted(BaseExtracted):
         batch_ids: list[str],
         sdk: SDK,
         state_extractor: Callable[[Job, pl.Sequence], dict[str, int] | None],
-        path: str | None = None,
+        path: Path | None = None,
     ):
         """
         Prepare for reception of data.
 
         Arguments:
-            compiled: The sequences, graphs, optionsl targets, ...
+            compiled: The result of compiling a set of graphs.
             batch_ids: The ids of the batches on the cloud API, in the same order as `compiled`.
             state_extractor: A callback used to extract the counter from a job.
                 Used as various cloud back-ends return different formats.
@@ -661,7 +662,7 @@ class PasqalCloudExtracted(BaseExtracted):
             compiled = self._compiled[i]
             # Note: There's only one job per batch.
             assert len(batch.jobs) == 1
-            for _, job in batch.jobs.items():
+            for job in batch.jobs.values():
                 if job.status == "DONE":
                     state_dict = self._state_extractor(job, compiled.sequence)
                     if state_dict is None:
@@ -724,8 +725,8 @@ class PasqalCloudExtracted(BaseExtracted):
 
 class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
     """
-    An Extractor that uses a distant a Quantum Device published
-    through Pasqal Cloud, to run sequences compiled from graphs.
+    An Extractor that uses a remote Quantum Device published
+    on Pasqal Cloud, to run sequences compiled from graphs.
 
     Performance note (servers and interactive applications only):
         If your code is meant to be executed as part of an interactive application or
@@ -752,12 +753,12 @@ class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
     def __init__(
         self,
         compiler: BaseGraphCompiler[GraphType],
-        device_name: str,
         project_id: str,
         username: str,
+        device_name: str,
         password: str | None = None,
         batch_ids: list[str] | None = None,
-        path: str | None = None,
+        path: Path | None = None,
     ):
         sdk = SDK(username=username, project_id=project_id, password=password)
 
@@ -839,8 +840,8 @@ class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
 
 class RemoteQPUExtractor(BaseRemoteExtractor[GraphType]):
     """
-    An Extractor that uses a distant a QPU published
-    through Pasqal Cloud, to run sequences compiled from graphs.
+    An Extractor that uses a remote QPU published
+    on Pasqal Cloud, to run sequences compiled from graphs.
 
     Performance note:
         as of this writing, the waiting lines for a QPU
@@ -877,7 +878,7 @@ class RemoteQPUExtractor(BaseRemoteExtractor[GraphType]):
         device_name: str = "FRESNEL",
         password: str | None = None,
         batch_ids: list[str] | None = None,
-        path: str | None = None,
+        path: Path | None = None,
     ):
         super().__init__(
             compiler=compiler,
@@ -895,8 +896,8 @@ class RemoteQPUExtractor(BaseRemoteExtractor[GraphType]):
 
 class RemoteEmuMPSExtractor(BaseRemoteExtractor[GraphType]):
     """
-    An Extractor that uses the high-performance distributed emu-mps emulator
-    through Pasqal Cloud, to run sequences compiled from graphs.
+    An Extractor that uses a remote high-performance emulator (EmuMPS)
+    published on Pasqal Cloud, to run sequences compiled from graphs.
 
     Performance note (servers and interactive applications only):
         If your code is meant to be executed as part of an interactive application or
@@ -928,7 +929,7 @@ class RemoteEmuMPSExtractor(BaseRemoteExtractor[GraphType]):
         device_name: str = "FRESNEL",
         password: str | None = None,
         batch_ids: list[str] | None = None,
-        path: str | None = None,
+        path: Path | None = None,
     ):
         super().__init__(
             compiler=compiler,
