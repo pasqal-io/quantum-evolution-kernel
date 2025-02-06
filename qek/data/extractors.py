@@ -354,7 +354,7 @@ class BaseExtractor(abc.ABC, Generic[GraphType]):
             Not all extractors may return the same data, so please take a look at the documentation
             of the extractor you are using.
         """
-        raise Exception("Not implemented")
+        raise NotImplementedError()
 
 
 class QutipExtractor(BaseExtractor[GraphType]):
@@ -781,7 +781,7 @@ class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
         """
         Launch the extraction.
         """
-        raise Exception("Not implemented")
+        raise NotImplementedError()
 
     def _run(
         self,
