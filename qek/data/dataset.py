@@ -8,6 +8,7 @@ import numpy as np
 import pulser as pl
 
 from qek.data.graphs import EPSILON_RADIUS_UM
+from qek.utils import make_sequence
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,18 @@ class ProcessedData:
         self.state_dict = {k: int(value) for k, value in state_dict.items()}
         self._dist_excitation = dist_excitation(self.state_dict)
         self.target = target
+
+    @classmethod
+    def from_register(
+        cls,
+        register: pl.Register,
+        pulse: pl.Pulse,
+        device: pl.devices.Device,
+        state_dict: dict[str, int | np.int64],
+        target: int | None,
+    ) -> "ProcessedData":
+        sequence = make_sequence(register=register, pulse=pulse, device=device)
+        return ProcessedData(sequence=sequence, state_dict=state_dict, target=target)
 
     def save_to_file(self, file_path: str) -> None:
         with open(file_path, "w") as file:

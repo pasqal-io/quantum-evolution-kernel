@@ -13,6 +13,7 @@ from pulser_simulation import QutipEmulator
 
 from qek.data.extractors import deserialize_device
 from qek.shared.error import CompilationError
+from qek.utils import make_sequence
 
 
 class BaseExecutor(abc.ABC):
@@ -30,10 +31,7 @@ class BaseExecutor(abc.ABC):
 
     def _make_sequence(self, register: Register, pulse: Pulse) -> Sequence:
         assert self._device is not None
-        sequence = Sequence(register=register, device=self._device)
-        sequence.declare_channel("ising", "rydberg_global")
-        sequence.add(pulse, "ising")
-        return sequence
+        return make_sequence(register=register, pulse=pulse, device=self._device)
 
     @abc.abstractmethod
     async def execute(self, register: Register, pulse: Pulse) -> dict[str, int]:
