@@ -2,7 +2,7 @@ import abc
 from math import ceil
 from typing import Counter
 
-import emu_mps
+import os
 from pulser import Pulse, Register, Sequence
 from pulser.devices import Device
 from pulser_simulation import QutipEmulator
@@ -11,6 +11,8 @@ from pulser_simulation import QutipEmulator
 class BaseExecutor(abc.ABC):
     """
     Low-level abstraction to execute a Register and a Pulse on a Quantum Device.
+
+    For higher-level abstractions, see `BaseExtractor` and its subclasses.
 
     The sole role of these abstractions is to provide the same API for all backends.
     They might be removed in a future version, once Pulser has gained a similar API.
@@ -59,27 +61,45 @@ class QutipExecutor(BaseExecutor):
         result: Counter[str] = emulator.run().sample_final_state()
         return result
 
+class RemoteQPUExecutor(BaseExecutor):
+    def __init__(self,
+        project_id: str,
+        username: str,
+        device_name: str = "FRESNEL",
+        password: str | None = None,
+    ):
+        self.project_id = project_id
+        self.username = username
+        self.device_name = device_name
+        self.password = password
 
-class EmuMPSExecutor(BaseExecutor):
-    """
-    Execute a Register and a Pulse on the high-performance emu-mps Emulator.
 
-    Performance warning:
-        Executing anything quantum related on an emulator takes an amount of resources
-        polynomial in 2^N, where N is the number of qubits. This can easily go beyond
-        the limit of the computer on which you're executing it.
-    """
+if os.name == 'posix':
+    import emu_mps
 
-    def __init__(self, device: Device):
-        super().__init__(device)
+    class EmuMPSExecutor(BaseExecutor):
+        """
+        Execute a Register and a Pulse on the high-performance emu-mps Emulator.
 
-    async def execute(self, register: Register, pulse: Pulse, dt: int = 10) -> dict[str, int]:
-        sequence = self._make_sequence(register=register, pulse=pulse)
-        backend = emu_mps.MPSBackend()
+        Only available locally under Unix.
 
-        # Configure observable.
-        cutoff_duration = int(ceil(sequence.get_duration() / dt) * dt)
-        observable = emu_mps.BitStrings(evaluation_times={cutoff_duration})
-        config = emu_mps.MPSConfig(observables=[observable], dt=dt)
-        counter: dict[str, int] = backend.run(sequence, config)[observable.name][cutoff_duration]
-        return counter
+        Performance warning:
+            Executing anything quantum related on an emulator takes an amount of resources
+            polynomial in 2^N, where N is the number of qubits. This can easily go beyond
+            the limit of the computer on which you're executing it.
+        """
+
+        def __init__(self, device: Device):
+            super().__init__(device)
+
+        async def execute(self, register: Register, pulse: Pulse, dt: int = 10) -> dict[str, int]:
+            sequence = self._make_sequence(register=register, pulse=pulse)
+            backend = emu_mps.MPSBackend()
+
+            # Configure observable.
+            cutoff_duration = int(ceil(sequence.get_duration() / dt) * dt)
+            observable = emu_mps.BitStrings(evaluation_times={cutoff_duration})
+            config = emu_mps.MPSConfig(observables=[observable], dt=dt)
+            counter: dict[str, int] = backend.run(sequence, config)[observable.name][cutoff_duration]
+            return counter
+
