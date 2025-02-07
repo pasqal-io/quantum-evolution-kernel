@@ -73,6 +73,10 @@ class RemoteQPUExecutor(BaseExecutor):
         self.device_name = device_name
         self.password = password
 
+    async def execute(self, register: Register, pulse: Pulse) -> dict[str, int]:
+        sdk = SDK(username=self.username, project_id=self.project_id, password=self.password)
+
+
 
 if os.name == 'posix':
     import emu_mps
