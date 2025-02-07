@@ -746,6 +746,8 @@ class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
             available through the Pasqal Cloud API.
         batch_id: Use this to resume a workflow e.g. after turning off
             your computer while the QPU was executing your sequences.
+            Warning: A batch started with one executor MUST NOT be resumed
+            with a different executor.
     """
 
     def __init__(
@@ -952,7 +954,7 @@ class RemoteEmuMPSExtractor(BaseRemoteExtractor[GraphType]):
             return result
 
         return self._run(
-            emulator=EmulatorType.EMU_TN,
+            emulator=EmulatorType.EMU_MPS,
             config=EmuTNConfig(
                 dt=dt,
             ),

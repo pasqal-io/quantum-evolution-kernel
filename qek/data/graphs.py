@@ -194,7 +194,7 @@ class BaseGraph:
     SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US = 1.0 * 2 * np.pi
     SEQUENCE_DEFAULT_DURATION_NS = 660
 
-    def compute_register(self) -> pl.Register:
+    def compile_register(self) -> pl.Register:
         """Create a Quantum Register based on a graph.
 
         Returns:
@@ -222,11 +222,11 @@ class BaseGraph:
             raise CompilationError(f"The graph is not compatible with {self.device}: {e}")
         return reg
 
-
-    def compile_pulse(self,
+    def compile_pulse(
+        self,
         amplitude: float = SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US,
         duration: int = SEQUENCE_DEFAULT_DURATION_NS,
-) -> pl.Pulse:
+    ) -> pl.Pulse:
         """Extract a Pulse for this graph.
 
         A Pulse represents the laser applied to the atoms on the device.
@@ -250,7 +250,6 @@ class BaseGraph:
             phase=0.0,
         )
         return pulse
-
 
 
 class MoleculeGraph(BaseGraph):

@@ -1,11 +1,18 @@
 import abc
+import asyncio
 from math import ceil
-from typing import Counter
+from typing import Counter, cast
 
 import os
+from pasqal_cloud import SDK
+from pasqal_cloud.device import BaseConfig, EmulatorType
+from pasqal_cloud.job import Job
 from pulser import Pulse, Register, Sequence
 from pulser.devices import Device
 from pulser_simulation import QutipEmulator
+
+from qek.data.extractors import deserialize_device
+from qek.shared.error import CompilationError
 
 
 class BaseExecutor(abc.ABC):
@@ -18,11 +25,12 @@ class BaseExecutor(abc.ABC):
     They might be removed in a future version, once Pulser has gained a similar API.
     """
 
-    def __init__(self, device: Device):
-        self.device = device
+    def __init__(self, device: Device | None):
+        self._device = device
 
     def _make_sequence(self, register: Register, pulse: Pulse) -> Sequence:
-        sequence = Sequence(register=register, device=self.device)
+        assert self._device is not None
+        sequence = Sequence(register=register, device=self._device)
         sequence.declare_channel("ising", "rydberg_global")
         sequence.add(pulse, "ising")
         return sequence
@@ -61,31 +69,155 @@ class QutipExecutor(BaseExecutor):
         result: Counter[str] = emulator.run().sample_final_state()
         return result
 
-class RemoteQPUExecutor(BaseExecutor):
-    def __init__(self,
+
+class BaseRemoteExecutor(BaseExecutor):
+    """
+    Base hierarch for remote executors.
+
+    Performance warning:
+        As of this writing, using remote executors to access a remote QPU or remote emulator
+        is slower than using a RemoteExtractor, as the RemoteExtractor optimizes the number
+        of connections used to communicate with the cloud server.
+    """
+
+    def __init__(
+        self,
         project_id: str,
         username: str,
         device_name: str = "FRESNEL",
         password: str | None = None,
     ):
-        self.project_id = project_id
-        self.username = username
+        """
+        Create a remote executor
+
+        Args:
+            project_id: The ID of the project on the Pasqal Cloud API.
+            username: Your username on the Pasqal Cloud API.
+            password: Your password on the Pasqal Cloud API. If you leave
+                this to None, you will need to enter your password manually.
+            device_name: The name of the device to use. As of this writing,
+                the default value of "FRESNEL" represents the latest QPU
+                available through the Pasqal Cloud API.
+        """
         self.device_name = device_name
-        self.password = password
+        self._sdk = SDK(username=username, project_id=project_id, password=password)
+        self._max_runs = 500
+        self._sequence = None
+        self._device = None
+
+    async def device(self) -> Device:
+        """
+        Make sure that we have fetched the latest specs for the device from the server.
+        """
+        if self._device is not None:
+            return self._device
+
+        # Fetch the latest list of QPUs
+        # Implementation note: Currently sync, hopefully async in the future.
+        specs = self._sdk.get_device_specs_dict()
+        self._device = cast(Device, deserialize_device(specs[self.device_name]))
+
+        # As of this writing, the API doesn't support runs longer than 500 jobs.
+        # If we want to add more runs, we'll need to split them across several jobs.
+        assert self._device is not None
+        if isinstance(self._device.max_runs, int):
+            self._max_runs = self._device.max_runs
+
+        return self._device
+
+    async def _run(
+        self,
+        register: Register,
+        pulse: Pulse,
+        emulator: EmulatorType | None,
+        config: BaseConfig | None = None,
+        sleep_sec: int = 2,
+    ) -> Job:
+        """
+        Run the pulse + register.
+
+        Arguments:
+            register: A register to run.
+            pulse: A pulse to execute.
+            emulator: The emulator to use, or None to run on a QPU.
+            config: The backend-specific config.
+            sleep_sec (optional): The amount of time to sleep when waiting for the remote server to respond, in seconds. Defaults to 2.
+
+        Raises:
+            CompilationError: If the register/pulse may not be executed on this device.
+        """
+        device = await self.device()
+        try:
+            sequence = Sequence(register=register, device=device)
+            sequence.declare_channel("ising", "rydberg_global")
+            sequence.add(pulse=pulse, channel="ising")
+
+            self._sequence = sequence
+        except ValueError as e:
+            raise CompilationError(f"This register/pulse cannot be executed on the device: {e}")
+
+        # Enqueue execution.
+        batch = self._sdk.create_batch(
+            serialized_sequence=sequence.to_abstract_repr(),
+            jobs=[{"runs": self._max_runs}],
+            wait=False,
+            emulator=emulator,
+            configuration=config,
+        )
+
+        # Wait for execution to complete.
+        while True:
+            await asyncio.sleep(sleep_sec)
+            # Currently sync, hopefully async in the future.
+            batch.refresh()
+            if batch.status in {"PENDING", "RUNNING"}:
+                # Continue waiting.
+                continue
+            job = next(iter(batch.jobs.values()))
+            if job.status == "ERROR":
+                raise Exception(f"Error while executing remote job: {job.errors}")
+            return job
+
+
+class RemoteQPUExecutor(BaseRemoteExecutor):
+    """
+    Execute on a remote QPU.
+
+    Performance note:
+        As of this writing, the waiting lines for a QPU
+        may be very long. You may use this Extractor to resume your workflow
+        with a computation that has been previously started.
+    """
 
     async def execute(self, register: Register, pulse: Pulse) -> dict[str, int]:
-        sdk = SDK(username=self.username, project_id=self.project_id, password=self.password)
+        job = await self._run(register, pulse, emulator=None, config=None)
+        return cast(dict[str, int], job.result)
 
 
+class RemoteEmuMPSExecutor(BaseRemoteExecutor):
+    """
+    An Executor that uses a remote high-performance emulator (EmuMPS)
+    published on Pasqal Cloud.
+    """
 
-if os.name == 'posix':
+    async def execute(self, register: Register, pulse: Pulse, dt: int = 10) -> dict[str, int]:
+        job = await self._run(register, pulse, emulator=EmulatorType.EMU_MPS, config=None)
+        bag = cast(dict[str, dict[int, dict[str, int]]], job.result)
+
+        assert self._sequence is not None
+        cutoff_duration = int(ceil(self._sequence.get_duration() / dt) * dt)
+        return bag["bitstring"][cutoff_duration]
+
+
+if os.name == "posix":
     import emu_mps
 
     class EmuMPSExecutor(BaseExecutor):
         """
         Execute a Register and a Pulse on the high-performance emu-mps Emulator.
 
-        Only available locally under Unix.
+        This local emulator is only available under Unix. The corresponding remote
+        emulator is available on all platforms.
 
         Performance warning:
             Executing anything quantum related on an emulator takes an amount of resources
@@ -104,6 +236,7 @@ if os.name == 'posix':
             cutoff_duration = int(ceil(sequence.get_duration() / dt) * dt)
             observable = emu_mps.BitStrings(evaluation_times={cutoff_duration})
             config = emu_mps.MPSConfig(observables=[observable], dt=dt)
-            counter: dict[str, int] = backend.run(sequence, config)[observable.name][cutoff_duration]
+            counter: dict[str, int] = backend.run(sequence, config)[observable.name][
+                cutoff_duration
+            ]
             return counter
-
