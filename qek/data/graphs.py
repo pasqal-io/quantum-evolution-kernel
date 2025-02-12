@@ -519,7 +519,7 @@ class NXGraphCompiler(BaseGraphCompiler[NXWithPos]):
     def ingest(self, graph: NXWithPos, device: pl.devices.Device, id: int) -> BaseGraph:
         pyg = pyg_utils.from_networkx(graph.graph)
         pyg.y = graph.target
-        positions = [graph.positions[node] for node in graph.graph.nodes()]
+        positions = np.array([graph.positions[node] for node in graph.graph.nodes()])
         pyg.pos = torch.tensor(positions, dtype=torch.float)
 
         return BaseGraph(id=id, device=device, data=pyg)
