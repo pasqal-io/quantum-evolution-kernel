@@ -3,7 +3,6 @@ from typing import cast
 import pulser
 import networkx as nx
 import torch
-import torch_geometric.data as pyg_data
 import torch_geometric.datasets as pyg_dataset
 import torch_geometric.utils as pyg_utils
 from torch_geometric.data import Data
@@ -20,13 +19,12 @@ from qek.data.graphs import (
 
 def test_graph_init() -> None:
     # Load dataset
-    original_ptcfm_data = [
-        cast(pyg_data.Data, d) for d in pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
-    ]
+    original_ptcfm_data = pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
 
     # Check that `add_graph_coord` doesn't break with this dataset.
 
     for i, data in enumerate(original_ptcfm_data):
+        assert isinstance(data, Data)
         graph = PTCFMGraph(data=data, device=pulser.AnalogDevice, id=i)
 
         # Make sure that the graph has been augmented with "pos".
@@ -44,7 +42,9 @@ def test_graph_init() -> None:
         assert nx.is_isomorphic(nx_graph, nx_reconstruct)
 
     # The first graph from the dataset is known to be embeddable.
-    graph = PTCFMGraph(data=original_ptcfm_data[0], device=pulser.AnalogDevice, id=9999)
+    sample = original_ptcfm_data[0]
+    assert isinstance(sample, Data)
+    graph = PTCFMGraph(data=sample, device=pulser.AnalogDevice, id=9999)
     assert graph.is_disk_graph(pulser.AnalogDevice.min_atom_distance + 0.01)
 
 
@@ -210,9 +210,7 @@ def test_basic_compile() -> None:
     Test basic properties of the various compilers. Mostly that they don't explode.
     """
     # Load dataset
-    original_ptcfm_data = [
-        cast(pyg_data.Data, d) for d in pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
-    ]
+    original_ptcfm_data = pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
 
     # Testing PygWithPosCompiler
     pyg_with_pos_compiler = PygWithPosCompiler()
@@ -266,7 +264,7 @@ def test_basic_compile() -> None:
 
     # Testing MoleculeGraphCompiler
     molecule_graph_compiler = PTCFMCompiler()
-    ingested = molecule_graph_compiler.ingest(
-        graph=original_ptcfm_data[0], device=pulser.AnalogDevice, id=9
-    )
+    sample = original_ptcfm_data[0]
+    assert isinstance(sample, Data)
+    ingested = molecule_graph_compiler.ingest(graph=sample, device=pulser.AnalogDevice, id=9)
     assert ingested.id == 9

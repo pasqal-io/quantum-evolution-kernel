@@ -24,10 +24,10 @@ def test_kernel() -> None:
                 similarities[i, i] >= 0.999
             )  # It should be 1, but let's allow for rounding errors.
             for j in range(len(similarities)):
-                print(f"similarities[{i}, {j}] == {similarities[i, j]}")
                 assert (
-                    abs(similarities[i, j] - similarities[j, i]) < 0.001
-                )  # It should be 0, but let's allow for rounding errors.
+                    abs(similarities[i, j] - similarities[j, i])
+                    < 0.001  # It should be 0, but let's allow for rounding errors.
+                ), f"similarities[{i}, {j}] == {similarities[i, j]}"
                 assert similarities[i, j] >= 0
                 assert (
                     similarities[i, j] <= 1.001

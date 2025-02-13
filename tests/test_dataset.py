@@ -13,8 +13,7 @@ def test_excitation_distribution() -> None:
     for dataset in processed_dataset:
         # Check that the values we have make sense.
         excitation = dataset.dist_excitation()
-        print(excitation)
-        assert len(excitation) == len(dataset._sequence.qubit_info) + 1
+        assert len(excitation) == len(dataset.register.qubits) + 1
         assert (excitation >= 0).all()
         assert (excitation <= 1).all()
         assert sum(excitation) >= 0.99
@@ -26,5 +25,4 @@ def test_excitation_distribution() -> None:
     expected[0] = 0.958
     expected[1] = 0.041
     expected[2] = 0.0
-    print(excitation)
     assert (excitation == expected).all()

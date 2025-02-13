@@ -8,7 +8,6 @@ from math import ceil
 from uuid import UUID
 import time
 from typing import Any, Callable, Generator, Generic, Sequence, TypeVar, cast
-import emu_mps
 from numpy.typing import NDArray
 from pasqal_cloud import SDK
 from pasqal_cloud.batch import Batch
@@ -17,6 +16,7 @@ from pasqal_cloud.job import Job
 from pasqal_cloud.utils.filters import BatchFilters
 from pathlib import Path
 import numpy as np
+import os
 import pulser as pl
 from pulser.devices import Device
 from pulser.json.abstract_repr.deserializer import deserialize_device
@@ -438,97 +438,102 @@ class QutipExtractor(BaseExtractor[GraphType]):
         return result
 
 
-class EmuMPSExtractor(BaseExtractor[GraphType]):
-    """
-    A Extractor that uses the emu-mps Emulator to run sequences compiled
-    from graphs.
+if os.name == "posix":
+    # Any Unix including Linux and macOS
 
-    Performance note: emulating a quantum device on a classical
-    computer requires considerable amount of resources, so this
-    Extractor may be slow or require too much memory. If should,
-    however, be faster than QutipExtractor in most cases.
+    import emu_mps
 
-    See also:
-    - QPUExtractor (run on a physical QPU)
-
-    Args:
-        path: Path to store the result of the run, for future uses.
-            To reload the result of a previous run, use `LoadExtractor`.
-        compiler: A graph compiler, in charge of converting graphs to Pulser Sequences,
-            the format that can be executed on a quantum device.
-        device: A device to use. For general experiments, the default
-            device `AnalogDevice` is a perfectly reasonable choice.
-    """
-
-    def __init__(
-        self,
-        compiler: BaseGraphCompiler[GraphType],
-        device: Device = pl.devices.AnalogDevice,
-        path: Path | None = None,
-    ):
-        super().__init__(device=device, compiler=compiler, path=path)
-        self.graphs: list[BaseGraph]
-        self.device = device
-
-    def run(self, max_qubits: int = 10, dt: int = 10) -> BaseExtracted:
+    class EmuMPSExtractor(BaseExtractor[GraphType]):
         """
-        Run the compiled graphs.
+        A Extractor that uses the emu-mps Emulator to run sequences compiled
+        from graphs.
 
-        As emulating a quantum device is slow consumes resources and time exponential in the
-        number of qubits, for the sake of performance, we limit the number of qubits in the execution
-        of this extractor.
+        Performance note: emulating a quantum device on a classical
+        computer requires considerable amount of resources, so this
+        Extractor may be slow or require too much memory. If should,
+        however, be faster than QutipExtractor in most cases.
+
+        See also:
+        - QPUExtractor (run on a physical QPU)
 
         Args:
-            max_qubits: Skip any sequence that require strictly more than `max_qubits`. Defaults to 8.
-            dt: The duration of the simulation step, in us. Defaults to 10.
-
-        Returns:
-            Processed data for all the sequences that were executed.
+            path: Path to store the result of the run, for future uses.
+                To reload the result of a previous run, use `LoadExtractor`.
+            compiler: A graph compiler, in charge of converting graphs to Pulser Sequences,
+                the format that can be executed on a quantum device.
+            device: A device to use. For general experiments, the default
+                device `AnalogDevice` is a perfectly reasonable choice.
         """
-        if len(self.sequences) == 0:
-            logger.warning("No sequences to run, did you forget to call compile()?")
-            return SyncExtracted(raw_data=[], targets=[], sequences=[], states=[])
 
-        backend = emu_mps.MPSBackend()
-        raw_data = []
-        targets: list[int] = []
-        sequences = []
-        states = []
-        for compiled in self.sequences:
-            qubits_used = len(compiled.sequence.qubit_info)
-            if qubits_used > max_qubits:
-                logger.info(
-                    "Graph %s exceeds the qubit limit specified in EmuMPSExtractor (%s > %s), skipping",
-                    id,
-                    qubits_used,
-                    max_qubits,
-                )
-                continue
-            logger.debug("Executing compiled graph # %s", id)
+        def __init__(
+            self,
+            compiler: BaseGraphCompiler[GraphType],
+            device: Device = pl.devices.AnalogDevice,
+            path: Path | None = None,
+        ):
+            super().__init__(device=device, compiler=compiler, path=path)
+            self.graphs: list[BaseGraph]
+            self.device = device
 
-            # Configure observable.
-            cutoff_duration = int(ceil(compiled.sequence.get_duration() / dt) * dt)
-            observable = emu_mps.BitStrings(evaluation_times={cutoff_duration})
-            config = emu_mps.MPSConfig(observables=[observable], dt=dt)
-            counter: dict[str, Any] = backend.run(compiled.sequence, config)[observable.name][
-                cutoff_duration
-            ]
-            logger.debug("Execution of compiled graph # %s complete", id)
-            raw_data.append(compiled.graph)
-            if compiled.graph.target is not None:
-                targets.append(compiled.graph.target)
-            sequences.append(compiled.sequence)
-            states.append(counter)
+        def run(self, max_qubits: int = 10, dt: int = 10) -> BaseExtracted:
+            """
+            Run the compiled graphs.
 
-        logger.debug("Emulation step complete, %s compiled graphs executed", len(raw_data))
+            As emulating a quantum device is slow consumes resources and time exponential in the
+            number of qubits, for the sake of performance, we limit the number of qubits in the execution
+            of this extractor.
 
-        result = SyncExtracted(
-            raw_data=raw_data, targets=targets, sequences=sequences, states=states
-        )
-        logger.debug("Emulation step complete, %s compiled graphs executed", len(raw_data))
-        if self.path is not None:
-            result.save_dataset(self.path)
-        return result
+            Args:
+                max_qubits: Skip any sequence that require strictly more than `max_qubits`. Defaults to 8.
+                dt: The duration of the simulation step, in us. Defaults to 10.
+
+            Returns:
+                Processed data for all the sequences that were executed.
+            """
+            if len(self.sequences) == 0:
+                logger.warning("No sequences to run, did you forget to call compile()?")
+                return SyncExtracted(raw_data=[], targets=[], sequences=[], states=[])
+
+            backend = emu_mps.MPSBackend()
+            raw_data = []
+            targets: list[int] = []
+            sequences = []
+            states = []
+            for compiled in self.sequences:
+                qubits_used = len(compiled.sequence.qubit_info)
+                if qubits_used > max_qubits:
+                    logger.info(
+                        "Graph %s exceeds the qubit limit specified in EmuMPSExtractor (%s > %s), skipping",
+                        id,
+                        qubits_used,
+                        max_qubits,
+                    )
+                    continue
+                logger.debug("Executing compiled graph # %s", id)
+
+                # Configure observable.
+                cutoff_duration = int(ceil(compiled.sequence.get_duration() / dt) * dt)
+                observable = emu_mps.BitStrings(evaluation_times={cutoff_duration})
+                config = emu_mps.MPSConfig(observables=[observable], dt=dt)
+                counter: dict[str, Any] = backend.run(compiled.sequence, config)[observable.name][
+                    cutoff_duration
+                ]
+                logger.debug("Execution of compiled graph # %s complete", id)
+                raw_data.append(compiled.graph)
+                if compiled.graph.target is not None:
+                    targets.append(compiled.graph.target)
+                sequences.append(compiled.sequence)
+                states.append(counter)
+
+            logger.debug("Emulation step complete, %s compiled graphs executed", len(raw_data))
+
+            result = SyncExtracted(
+                raw_data=raw_data, targets=targets, sequences=sequences, states=states
+            )
+            logger.debug("Emulation step complete, %s compiled graphs executed", len(raw_data))
+            if self.path is not None:
+                result.save_dataset(self.path)
+            return result
 
 
 # How many seconds to sleep while waiting for the results from the cloud.
@@ -781,7 +786,7 @@ class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
         """
         Launch the extraction.
         """
-        raise Exception("Not implemented")
+        raise NotImplementedError()
 
     def _run(
         self,
