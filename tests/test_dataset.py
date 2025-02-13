@@ -14,7 +14,7 @@ def test_excitation_distribution() -> None:
         # Check that the values we have make sense.
         excitation = dataset.dist_excitation()
         print(excitation)
-        assert len(excitation) == len(dataset.sequence.qubit_info) + 1
+        assert len(excitation) == len(dataset._sequence.qubit_info) + 1
         assert (excitation >= 0).all()
         assert (excitation <= 1).all()
         assert sum(excitation) >= 0.99

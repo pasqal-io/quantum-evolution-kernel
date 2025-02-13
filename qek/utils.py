@@ -3,6 +3,10 @@ from __future__ import annotations
 import networkx as nx
 import numpy as np
 import numpy.typing as npt
+import pulser
+from pulser import Pulse, Register
+from pulser.devices import Device
+from qek.shared.error import CompilationError
 import rdkit.Chem as Chem
 
 
@@ -54,3 +58,13 @@ def inverse_one_hot(array: npt.ArrayLike, dim: int) -> np.ndarray:
     """
     tmp_array = np.asarray(array)
     return np.nonzero(tmp_array == 1.0)[dim]
+
+
+def make_sequence(device: Device, pulse: Pulse, register: Register) -> pulser.Sequence:
+    try:
+        sequence = pulser.Sequence(register=register, device=device)
+        sequence.declare_channel("ising", "rydberg_global")
+        sequence.add(pulse, "ising")
+        return sequence
+    except ValueError as e:
+        raise CompilationError(f"This pulse/register cannot be executed on the device: {e}")

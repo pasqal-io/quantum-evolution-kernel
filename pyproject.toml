@@ -38,6 +38,7 @@ dependencies = [
   "torch_geometric",
   "matplotlib",
   "emu-mps~=1.2.0",
+  "pasqal-cloud",
 ]
 
 [tool.hatch.metadata]

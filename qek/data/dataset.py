@@ -1,6 +1,6 @@
 import collections
 import json
-from typing import Final, cast
+from typing import Final
 import matplotlib
 
 import logging
@@ -8,6 +8,7 @@ import numpy as np
 import pulser as pl
 
 from qek.data.graphs import EPSILON_RADIUS_UM
+from qek.utils import make_sequence
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,10 @@ class ProcessedData:
     Data on a single graph obtained from the Quantum Device.
 
     Attributes:
-        sequence: The sequence, derived from the graph geometry,
-            executed on the device.
+        register: The geometry of atoms on the Quantum Device, obtained
+            by compiling the graph for execution on the Quantum Device.
+        pulse: The laser pulse, obtained by compiling the graph for
+            execution on the Quantum Device.
         state_dict: A dictionary {bitstring: number of instances}
             for this graph.
         target: If specified, the machine-learning target, as a
@@ -40,7 +43,6 @@ class ProcessedData:
     specific graph).
     """
 
-    sequence: Final[pl.Sequence]
     state_dict: Final[dict[str, int]]
     _dist_excitation: Final[np.ndarray]
     target: Final[int | None]
@@ -48,7 +50,7 @@ class ProcessedData:
     def __init__(
         self, sequence: pl.Sequence, state_dict: dict[str, int | np.int64], target: int | None
     ):
-        self.sequence = sequence
+        self._sequence = sequence
         # Some emulators will actually be `dict[str, int64]` instead of `dict[str, int]` and `int64`
         # is not JSON-serializable.
         #
@@ -61,24 +63,25 @@ class ProcessedData:
         self._dist_excitation = dist_excitation(self.state_dict)
         self.target = target
 
+    @classmethod
+    def from_register(
+        cls,
+        register: pl.Register,
+        pulse: pl.Pulse,
+        device: pl.devices.Device,
+        state_dict: dict[str, int | np.int64],
+        target: int | None,
+    ) -> "ProcessedData":
+        sequence = make_sequence(register=register, pulse=pulse, device=device)
+        return ProcessedData(sequence=sequence, state_dict=state_dict, target=target)
+
     def save_to_file(self, file_path: str) -> None:
         with open(file_path, "w") as file:
             tmp_dict = {
-                "sequence": self.sequence.to_abstract_repr(),
                 "state_dict": self.state_dict,
                 "target": self.target,
             }
             json.dump(tmp_dict, file)
-
-    @classmethod
-    def load_from_file(cls, file_path: str) -> "ProcessedData":
-        with open(file_path) as file:
-            tmp_data = json.load(file)
-            return cls(
-                sequence=pl.Sequence.from_abstract_repr(obj_str=tmp_data["sequence"]),
-                state_dict=tmp_data["state_dict"],
-                target=tmp_data["target"],
-            )
 
     def dist_excitation(self, size: int | None = None) -> np.ndarray:
         """
@@ -94,20 +97,38 @@ class ProcessedData:
             return np.resize(self._dist_excitation, size)
         return np.pad(self._dist_excitation, (0, size - len(self._dist_excitation)))
 
-    def draw_sequence(self) -> None:
+    @property
+    def pulse(self) -> pl.Pulse:
         """
-        Draw the sequence on screen
+        The laser pulse used to process this data.
         """
-        self.sequence.draw()
+        # For the time being, we cannot obtain this information from a public API, see https://github.com/pasqal-io/Pulser/issues/801 .
+        pulse = self._sequence._schedule["ising"].slots[-1].type
+        assert isinstance(pulse, pl.Pulse)
+        return pulse
+
+    @property
+    def register(self) -> pl.Register:
+        """
+        The register to which the graph was compiled.
+        """
+        register = self._sequence.register
+        assert isinstance(register, pl.Register)
+        return register
+
+    def draw_pulse(self) -> None:
+        """
+        Draw the pulse on screen
+        """
+        self.pulse.draw()
 
     def draw_register(self) -> None:
         """
         Draw the register on screen
         """
-        register = cast(pl.Register, self.sequence.register)
-        register.draw(
+        self.register.draw(
             # We increase slightly the blockade radius to take into account rounding errors.
-            blockade_radius=self.sequence.device.min_atom_distance
+            blockade_radius=self._sequence.device.min_atom_distance
             + EPSILON_RADIUS_UM
         )
 
@@ -184,7 +205,7 @@ def save_dataset(dataset: list[ProcessedData], file_path: str) -> None:
     with open(file_path, "w") as file:
         data = [
             {
-                "sequence": instance.sequence.to_abstract_repr(),
+                "sequence": instance._sequence.to_abstract_repr(),
                 "state_dict": instance.state_dict,
                 "target": instance.target,
             }
