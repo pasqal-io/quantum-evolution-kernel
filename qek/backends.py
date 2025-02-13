@@ -16,7 +16,7 @@ from qek.shared.error import CompilationError
 from qek.utils import make_sequence
 
 
-class BaseExecutor(abc.ABC):
+class BaseBackend(abc.ABC):
     """
     Low-level abstraction to execute a Register and a Pulse on a Quantum Device.
 
@@ -45,11 +45,11 @@ class BaseExecutor(abc.ABC):
         raise NotImplementedError
 
 
-class QutipExecutor(BaseExecutor):
+class QutipBackend(BaseBackend):
     """
     Execute a Register and a Pulse on the Qutip Emulator.
 
-    Please consider using EmuMPSExecutor, which generally works much better with
+    Please consider using EmuMPSBackend, which generally works much better with
     higher number of qubits.
 
     Performance warning:
@@ -68,12 +68,12 @@ class QutipExecutor(BaseExecutor):
         return result
 
 
-class BaseRemoteExecutor(BaseExecutor):
+class BaseRemoteBackend(BaseBackend):
     """
-    Base hierarch for remote executors.
+    Base hierarch for remote backends.
 
     Performance warning:
-        As of this writing, using remote executors to access a remote QPU or remote emulator
+        As of this writing, using remote Backends to access a remote QPU or remote emulator
         is slower than using a RemoteExtractor, as the RemoteExtractor optimizes the number
         of connections used to communicate with the cloud server.
     """
@@ -86,7 +86,7 @@ class BaseRemoteExecutor(BaseExecutor):
         password: str | None = None,
     ):
         """
-        Create a remote executor
+        Create a remote backend
 
         Args:
             project_id: The ID of the project on the Pasqal Cloud API.
@@ -176,7 +176,7 @@ class BaseRemoteExecutor(BaseExecutor):
             return job
 
 
-class RemoteQPUExecutor(BaseRemoteExecutor):
+class RemoteQPUBackend(BaseRemoteBackend):
     """
     Execute on a remote QPU.
 
@@ -191,9 +191,9 @@ class RemoteQPUExecutor(BaseRemoteExecutor):
         return cast(dict[str, int], job.result)
 
 
-class RemoteEmuMPSExecutor(BaseRemoteExecutor):
+class RemoteEmuMPSBackend(BaseRemoteBackend):
     """
-    An Executor that uses a remote high-performance emulator (EmuMPS)
+    A backend that uses a remote high-performance emulator (EmuMPS)
     published on Pasqal Cloud.
     """
 
@@ -209,12 +209,12 @@ class RemoteEmuMPSExecutor(BaseRemoteExecutor):
 if os.name == "posix":
     import emu_mps
 
-    class EmuMPSExecutor(BaseExecutor):
+    class EmuMPSBackend(BaseBackend):
         """
         Execute a Register and a Pulse on the high-performance emu-mps Emulator.
 
-        This local emulator is only available under Unix. The corresponding remote
-        emulator is available on all platforms.
+        As of this writing, this local emulator is only available under Unix. However,
+        the RemoteEmuMPSBackend is available on all platforms.
 
         Performance warning:
             Executing anything quantum related on an emulator takes an amount of resources
