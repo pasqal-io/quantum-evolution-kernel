@@ -34,7 +34,7 @@ class BaseExecutor(abc.ABC):
         return make_sequence(register=register, pulse=pulse, device=self._device)
 
     @abc.abstractmethod
-    async def execute(self, register: Register, pulse: Pulse) -> dict[str, int]:
+    async def run(self, register: Register, pulse: Pulse) -> dict[str, int]:
         """
         Execute a register and a pulse.
 
@@ -42,7 +42,7 @@ class BaseExecutor(abc.ABC):
             A bitstring counter, i.e. a data structure counting for each bitstring
             the number of instances of this bitstring observed at the end of runs.
         """
-        raise Exception("Not implemented")
+        raise NotImplementedError
 
 
 class QutipExecutor(BaseExecutor):
@@ -61,7 +61,7 @@ class QutipExecutor(BaseExecutor):
     def __init__(self, device: Device):
         super().__init__(device)
 
-    async def execute(self, register: Register, pulse: Pulse) -> dict[str, int]:
+    async def run(self, register: Register, pulse: Pulse) -> dict[str, int]:
         sequence = self._make_sequence(register=register, pulse=pulse)
         emulator = QutipEmulator.from_sequence(sequence)
         result: Counter[str] = emulator.run().sample_final_state()
@@ -117,7 +117,6 @@ class BaseRemoteExecutor(BaseExecutor):
 
         # As of this writing, the API doesn't support runs longer than 500 jobs.
         # If we want to add more runs, we'll need to split them across several jobs.
-        assert self._device is not None
         if isinstance(self._device.max_runs, int):
             self._max_runs = self._device.max_runs
 
@@ -187,7 +186,7 @@ class RemoteQPUExecutor(BaseRemoteExecutor):
         with a computation that has been previously started.
     """
 
-    async def execute(self, register: Register, pulse: Pulse) -> dict[str, int]:
+    async def run(self, register: Register, pulse: Pulse) -> dict[str, int]:
         job = await self._run(register, pulse, emulator=None, config=None)
         return cast(dict[str, int], job.result)
 
@@ -198,7 +197,7 @@ class RemoteEmuMPSExecutor(BaseRemoteExecutor):
     published on Pasqal Cloud.
     """
 
-    async def execute(self, register: Register, pulse: Pulse, dt: int = 10) -> dict[str, int]:
+    async def run(self, register: Register, pulse: Pulse, dt: int = 10) -> dict[str, int]:
         job = await self._run(register, pulse, emulator=EmulatorType.EMU_MPS, config=None)
         bag = cast(dict[str, dict[int, dict[str, int]]], job.result)
 
@@ -226,7 +225,7 @@ if os.name == "posix":
         def __init__(self, device: Device):
             super().__init__(device)
 
-        async def execute(self, register: Register, pulse: Pulse, dt: int = 10) -> dict[str, int]:
+        async def run(self, register: Register, pulse: Pulse, dt: int = 10) -> dict[str, int]:
             sequence = self._make_sequence(register=register, pulse=pulse)
             backend = emu_mps.MPSBackend()
 
