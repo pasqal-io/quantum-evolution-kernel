@@ -88,8 +88,6 @@ class QuantumEvolutionKernel:
 
         # Note: At this stage, size_max could theoretically still be `None``, if both `X1` and `X2`
         # are empty. In such cases, `dist_excitation` will never be called, so we're ok.
-
-        mu = float(self.params["mu"])
         feat_rows = [row.dist_excitation(size_max) for row in X1]
 
         if X2 is None:
@@ -104,8 +102,7 @@ class QuantumEvolutionKernel:
             for i, dist_row in enumerate(feat_rows):
                 for j in range(i, len(feat_rows)):
                     dist_col = feat_rows[j]
-                    js = jensenshannon(dist_row, dist_col) ** 2
-                    similarity = np.exp(-mu * js)
+                    similarity = self.distance(dist_row, dist_col)
                     kernel[i, j] = similarity
                     if j != i:
                         kernel[j, i] = similarity
@@ -117,9 +114,19 @@ class QuantumEvolutionKernel:
             feat_columns = [col.dist_excitation(size_max) for col in X2]
             for i, dist_row in enumerate(feat_rows):
                 for j, dist_col in enumerate(feat_columns):
-                    js = jensenshannon(dist_row, dist_col) ** 2
-                    kernel[i, j] = np.exp(-mu * js)
+                    kernel[i, j] = self.distance(dist_row, dist_col)
         return kernel
+
+    def distance(self, row: NDArray[np.floating], col: NDArray[np.floating]) -> np.floating:
+        """
+        The distance metric used to compute the kernel, used when calling `kernel(X1, X2)`.
+
+        To experiment with other distances, you may subclass `QuantumEvolutionKernel` and overload
+        this class.
+        """
+        js = jensenshannon(row, col) ** 2
+        mu = float(self.params["mu"])
+        return np.exp(-mu * js)
 
     def similarity(self, graph_1: ProcessedData, graph_2: ProcessedData) -> float:
         """Compute the similarity between two graphs using Jensen-Shannon
