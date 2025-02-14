@@ -16,12 +16,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test_qek_ubuntu:
-    name: Run unit/integration tests (ubuntu)
-    runs-on: ubuntu-latest
+  test_qek:
+    name: Run unit/integration tests
     strategy:
       matrix:
-        python-version: ["3.10", "3.11"]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout QEK
       uses: actions/checkout@v4
@@ -32,6 +33,22 @@ jobs:
     - name: Install Hatch
       run: |
         pip install hatch
+    - name: Pre-download dataset
+        # On macOS (and only on macOS), we encounter a strange issue:
+        #
+        # - loading the dataset causes a FileNotFoundException to be raised
+        # - checking afterwards, the dataset *is* on the disk
+        # - rerunning the process, the dataset is found.
+        #
+        # The running hypothesis is that pytorch-geometric downloads the
+        # dataset asynchronously, but fails to wait until the download is
+        # complete.
+        #
+        # With this small script, we force the pipeline to wait until the
+        # download is complete. So far, this seems to solve the issue.
+      if: ${{ matrix.os == 'macos-latest' }}
+      run: |
+        hatch -v run before_tests
     - name: Run tests
       run: |
         hatch -v run test
@@ -44,11 +61,55 @@ jobs:
         if-no-files-found: ignore
 
   test_notebook:
-    name: Run the Jupyter notebook tutorials (ubuntu)
-    runs-on: ubuntu-latest
+    name: Run the Jupyter notebook tutorial (Unix)
     strategy:
       matrix:
-        python-version: ["3.10", "3.11"]
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout QEK
+        uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Hatch
+        run: |
+          pip install hatch
+      - name: Pre-download dataset
+        if: ${{ matrix.os == 'macos-latest' }}
+        # On macOS (and only on macOS), we encounter a strange issue:
+        #
+        # - loading the dataset causes a FileNotFoundException to be raised
+        # - checking afterwards, the dataset *is* on the disk
+        # - rerunning the process, the dataset is found.
+        #
+        # The running hypothesis is that pytorch-geometric downloads the
+        # dataset asynchronously, but fails to wait until the download is
+        # complete.
+        #
+        # With this small script, we force the pipeline to wait until the
+        # download is complete. So far, this seems to solve the issue.
+        run: |
+          hatch -v run before_tests
+      - name: Copy samples
+        run: |
+          cp examples/ptcfm_processed_dataset.json .
+      - name: Run notebooks
+        run: |
+          hatch run pip install jupyter
+          for tutorial in examples/tutorial*.ipynb; do
+            hatch run jupyter execute "$tutorial";
+          done
+
+  test_notebook_windows:
+    name: Run the Jupyter notebook tutorial (Windows)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
       - name: Checkout QEK
         uses: actions/checkout@v4
@@ -65,14 +126,15 @@ jobs:
       - name: Run notebook
         run: |
           hatch run pip install jupyter
-          for tutorial in examples/tutorial*.ipynb; do
-            hatch run jupyter execute "$tutorial";
-          done
+          $files = Get-ChildItem -Path examples -Include *.ipynb
+          foreach($tutorial in $files) {
+            hatch run jupyter execute "$tutorial"
+          }
 
   publish:
     name: Publish to PyPI
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: test_qek_ubuntu
+    needs: test_qek
     runs-on: ubuntu-latest
     permissions:
       # IMPORTANT: this permission is mandatory for trusted publishing
@@ -108,7 +170,7 @@ jobs:
   deploy_docs:
     name: Deploy QEK docs (ubuntu)
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: test_qek_ubuntu
+    needs: test_qek
     runs-on: ubuntu-latest
     steps:
     - name: Checkout QEK
