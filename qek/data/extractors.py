@@ -299,7 +299,7 @@ class BaseExtractor(abc.ABC, Generic[GraphType]):
         """
         Compile all pending graphs into Pulser sequences that the Quantum Device may execute.
 
-        Once this method have succeeded, the results are stored in `self.sequences`.
+        Once this method has succeeded, the results are stored in `self.sequences`.
         """
         if len(self.graphs) == 0:
             raise Exception("No graphs to compile, did you forget to call `import_graphs`?")
