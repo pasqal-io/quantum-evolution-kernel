@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 from scipy.spatial.distance import jensenshannon
 
 from qek.data.processed_data import ProcessedData
-
+from qek.data.extractors import BaseExtractor, GraphType
 
 class QuantumEvolutionKernel:
     """Implementation of the Quantum Evolution Kernel.
@@ -25,7 +25,9 @@ class QuantumEvolutionKernel:
     - X (Sequence[ProcessedData]): Training data used for fitting the kernel.
     - kernel_matrix (np.ndarray): Kernel matrix. This is assigned in the `fit()` method
 
-
+    Note: This class does **not** accept raw data, but rather `ProcessedData`. See
+    class IntegratedQuantumEvolutionKernel for a subclass that provides a more powerful API,
+    at the expense of performance.
     """
 
     def __init__(
@@ -98,6 +100,8 @@ class QuantumEvolutionKernel:
 
         # Note: At this stage, size_max could theoretically still be `None``, if both `X1` and `X2`
         # are empty. In such cases, `dist_excitation` will never be called, so we're ok.
+
+        mu = float(self.params["mu"])
         feat_rows = [row.dist_excitation(size_max) for row in X1]
         similarity = cast(
             Callable[[NDArray[np.floating], NDArray[np.floating]], np.floating],
@@ -288,6 +292,118 @@ class QuantumEvolutionKernel:
                 Note that this method always performs a copy of the dictionary.
         """
         return copy.deepcopy(self.params)
+
+
+class IntegratedQuantumEvolutionKernel(QuantumEvolutionKernel, Generic[GraphType]):
+    """
+    A variant of the Quantum Evolution Kernel that supports fit/transform/fit_transform from raw data (graphs).
+
+    Performance note:
+        This class uses an extractor to convert the raw data into features. This can be very slow if
+        you use, for instance, a remote QPU, as the waitlines to access a QPU can be very long. If you
+        are using this in an interactive application or a server, this will block the entire thread
+        during the wait.
+
+        We recommend using this class only with local emulators.
+    """
+
+    def __init__(self, mu: float, extractor: BaseExtractor[GraphType], size_max: int | None = None):
+        """
+        Initialize an IntegratedQuantumEvolutionKernel
+
+        Arguments:
+            mu (float): Scaling factor for the Jensen-Shannon divergence
+            extractor: An extractor (e.g. a QPU or a Quantum emulator) used to conver the raw data (graphs) into features.
+            size_max (int, optional): If specified, only consider the first `size_max`
+                qubits of bitstrings. Otherwise, consider all qubits. You may use this
+                to trade precision in favor of speed.
+        """
+        super().__init__(mu, size_max)
+        self._extractor = extractor
+
+    def extract(self, X: Sequence[ProcessedData] | Sequence[GraphType]) -> Sequence[ProcessedData]:
+        """
+        Convert the raw data into features.
+
+        Performance note:
+            This method can can be very slow if you use, for instance, a remote QPU, as the waitlines to
+            access a QPU can be very long. If you are using this in an interactive application or a server,
+            this will block the entire thread during the wait.
+        """
+        if len(X) == 0:
+            return []
+        if isinstance(X[0], ProcessedData):
+            return cast(Sequence[ProcessedData], X)
+        graphs = [cast(GraphType, g) for g in X]
+        self._extractor.add_graphs(graphs)
+        extracted = self._extractor.run()
+        # Performance warning: this line can take hours to execute, if there's a long wait before
+        # being allocated a QPU!
+        return extracted.processed_data
+
+    def fit(self, X: Sequence[ProcessedData] | Sequence[GraphType], y: list | None = None) -> None:
+        """Fit the kernel to the training dataset by storing the dataset.
+
+        Performance warning:
+            This method can can be very slow if you use, for instance, a remote QPU, as the waitlines to
+            access a QPU can be very long. If you are using this in an interactive application or a server,
+            this will block the entire thread during the wait.
+
+
+        Args:
+            X (Sequence[ProcessedData]): The training dataset.
+            y: list: Target variable for the dataset sequence.
+                This argument is ignored, provided only for compatibility
+                with machine-learning libraries.
+        """
+        seq = self.extract(X)
+        return super().fit(seq, y)
+
+    def transform(
+        self, X_test: Sequence[ProcessedData] | Sequence[GraphType], y_test: list | None = None
+    ) -> np.ndarray:
+        """Transform the dataset into the kernel space with respect to the training dataset.
+
+        Performance warning:
+            This method can can be very slow if you use, for instance, a remote QPU, as the waitlines to
+            access a QPU can be very long. If you are using this in an interactive application or a server,
+            this will block the entire thread during the wait.
+
+        Args:
+            X_test (Sequence[ProcessedData]): The dataset to transform.
+            y_test: list: Target variable for the dataset sequence.
+                This argument is ignored, provided only for compatibility
+                with machine-learning libraries.
+        Returns:
+            np.ndarray: Kernel matrix where each entry represents the similarity between
+                        the given dataset and the training dataset.
+        """
+        if self.X is None:
+            raise ValueError("The kernel must be fit to a training dataset before transforming.")
+
+        seq = self.extract(X_test)
+        return super().transform(seq, y_test)
+
+    def fit_transform(
+        self, X: Sequence[ProcessedData] | Sequence[GraphType], y: list | None = None
+    ) -> np.ndarray:
+        """Fit the kernel to the training dataset and transform it.
+
+        Performance warning:
+            This method can can be very slow if you use, for instance, a remote QPU, as the waitlines to
+            access a QPU can be very long. If you are using this in an interactive application or a server,
+            this will block the entire thread during the wait.
+
+        Args:
+            X (Sequence[ProcessedData]): The dataset to fit and transform.
+            y: list: Target variable for the dataset sequence.
+                This argument is ignored, provided only for compatibility
+                with machine-learning libraries.
+        Returns:
+            np.ndarray: Kernel matrix for the training dataset.
+        """
+        seq = self.extract(X)
+        return super().fit_transform(seq, y)
 
 
 def count_occupation_from_bitstring(bitstring: str) -> int:
