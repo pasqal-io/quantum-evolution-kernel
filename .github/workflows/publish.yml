@@ -1,7 +1,13 @@
+name: Publish
+
 on:
     release:
         types:
             [published]
+
+concurrency:
+  group: fast-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
     publish_pypi:
