@@ -1,4 +1,4 @@
-from typing import Tuple, cast
+from typing import cast
 
 import os
 import pulser as pl
@@ -26,9 +26,8 @@ async def test_async_emulators() -> None:
         cast(pyg_data.Data, d) for d in pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
     ]
 
-    compiled: list[Tuple[qek_graphs.BaseGraph, pl.Register, pl.Pulse]] = []
+    compiled: list[tuple[qek_graphs.BaseGraph, pl.Register, pl.Pulse]] = []
     for i, data in enumerate(original_ptcfm_data):
-        print("loading graph %s" % (i,))
         graph = qek_graphs.PTCFMGraph(data=data, device=pl.AnalogDevice, id=i)
         try:
             register = graph.compile_register()
@@ -54,7 +53,6 @@ async def test_async_emulators() -> None:
         for g, register, pulse in compiled:
             result = await backend.run(register, pulse)
             # The only thing we can test from the result is that the values make _some_ kind of sense.
-            print("result: %s" % (result,))
             assert isinstance(result, dict)
             for k, v in result.items():
                 assert isinstance(k, str)
