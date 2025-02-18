@@ -1,9 +1,9 @@
-import asyncio
 from typing import Tuple, cast
 
 import os
 import pulser as pl
 import pytest
+import conftest
 import torch_geometric.data as pyg_data
 import torch_geometric.datasets as pyg_dataset
 from qek.backends import CompilationError, QutipBackend, BaseBackend
@@ -19,8 +19,7 @@ async def test_async_emulators() -> None:
     """
     Test that backends based on emulators can execute without exploding (async).
     """
-    # For a reason unknown, this seems to help.
-    await asyncio.sleep(0)
+    conftest.preload_dataset()
 
     # Load dataset
     original_ptcfm_data = [
