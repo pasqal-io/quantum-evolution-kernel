@@ -1,3 +1,4 @@
+import asyncio
 from typing import Tuple, cast
 
 import os
@@ -18,6 +19,9 @@ async def test_async_emulators() -> None:
     """
     Test that backends based on emulators can execute without exploding (async).
     """
+    # For a reason unknown, this seems to help.
+    await asyncio.sleep(0)
+
     # Load dataset
     original_ptcfm_data = [
         cast(pyg_data.Data, d) for d in pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
