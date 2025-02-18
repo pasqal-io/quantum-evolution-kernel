@@ -4,7 +4,6 @@ repo_name: "Quantum Evolution Kernel"
 
 nav:
   - Overview: index.md
-  - Sample page: sample_page.md
 
 theme:
   name: material
