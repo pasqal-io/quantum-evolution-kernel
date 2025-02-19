@@ -20,10 +20,15 @@ class QuantumEvolutionKernel:
     """Implementation of the Quantum Evolution Kernel.
 
     Attributes:
-    - params (dict): Dictionary of training parameters. As of this writing, the only
-        training parameter is "mu", the scaling factor for the Jensen-Shannon divergence.
+    - params (dict): Dictionary of training parameters, see below.
     - X (Sequence[ProcessedData]): Training data used for fitting the kernel.
     - kernel_matrix (np.ndarray): Kernel matrix. This is assigned in the `fit()` method
+
+    Training parameters:
+        mu (float): Scaling factor for the Jensen-Shannon divergence
+        size_max (int, optional): If specified, only consider the first `size_max`
+            qubits of bitstrings. Otherwise, consider all qubits. You may use this
+            to trade precision in favor of speed.
 
     Note: This class does **not** accept raw data, but rather `ProcessedData`. See
     class IntegratedQuantumEvolutionKernel for a subclass that provides a more powerful API,
@@ -305,6 +310,13 @@ class IntegratedQuantumEvolutionKernel(QuantumEvolutionKernel, Generic[GraphType
         during the wait.
 
         We recommend using this class only with local emulators.
+
+    Training parameters:
+        mu (float): Scaling factor for the Jensen-Shannon divergence
+        extractor: An extractor (e.g. a QPU or a Quantum emulator) used to conver the raw data (graphs) into features.
+        size_max (int, optional): If specified, only consider the first `size_max`
+            qubits of bitstrings. Otherwise, consider all qubits. You may use this
+            to trade precision in favor of speed.
     """
 
     def __init__(self, mu: float, extractor: BaseExtractor[GraphType], size_max: int | None = None):
@@ -319,7 +331,7 @@ class IntegratedQuantumEvolutionKernel(QuantumEvolutionKernel, Generic[GraphType
                 to trade precision in favor of speed.
         """
         super().__init__(mu, size_max)
-        self._extractor = extractor
+        self.params["extractor"] = extractor
 
     def extract(self, X: Sequence[ProcessedData] | Sequence[GraphType]) -> Sequence[ProcessedData]:
         """
@@ -335,8 +347,9 @@ class IntegratedQuantumEvolutionKernel(QuantumEvolutionKernel, Generic[GraphType
         if isinstance(X[0], ProcessedData):
             return cast(Sequence[ProcessedData], X)
         graphs = [cast(GraphType, g) for g in X]
-        self._extractor.add_graphs(graphs)
-        extracted = self._extractor.run()
+        extractor: BaseExtractor[GraphType] = self.params["extractor"]
+        extractor.add_graphs(graphs)
+        extracted = extractor.run()
         # Performance warning: this line can take hours to execute, if there's a long wait before
         # being allocated a QPU!
         return extracted.processed_data
