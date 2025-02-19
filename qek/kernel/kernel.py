@@ -4,7 +4,7 @@ The Quantum Evolution Kernel itself, for use in a machine-learning pipeline.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, cast
 import collections
 import copy
 from collections.abc import Sequence
@@ -99,9 +99,14 @@ class QuantumEvolutionKernel:
         # Note: At this stage, size_max could theoretically still be `None``, if both `X1` and `X2`
         # are empty. In such cases, `dist_excitation` will never be called, so we're ok.
         feat_rows = [row.dist_excitation(size_max) for row in X1]
-        similarity: Callable[[NDArray[np.floating], NDArray[np.floating]], np.floating] = (
-            self.params.get("similarity", self.default_similarity)
+        similarity = cast(
+            Callable[[NDArray[np.floating], NDArray[np.floating]], np.floating],
+            self.params["similarity"],
         )
+
+        if similarity is None:
+            similarity = self.default_similarity
+
         if X2 is None:
             # Fast path:
             # - rows and columns are identical, so no need to compute a `feat_cols`;
