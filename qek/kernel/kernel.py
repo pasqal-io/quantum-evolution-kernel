@@ -46,12 +46,10 @@ class QuantumEvolutionKernel:
             similarity (optional): If specified, a custom similarity metric to use. Otherwise,
                 use the Jensen-Shannon divergence.
         """
-        if similarity is None:
-            similarity = self.js_similarity
         self.params: dict[str, Any] = {
             "mu": mu,
             "size_max": size_max,
-            "similarity": similarity,
+            "similarity": similarity if similarity is not None else self.js_similarity,
         }
         self.X: Sequence[ProcessedData]
         self.kernel_matrix: np.ndarray
