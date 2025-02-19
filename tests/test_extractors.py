@@ -4,6 +4,7 @@ import os
 import pytest
 import torch_geometric.data as pyg_data
 import torch_geometric.datasets as pyg_dataset
+import conftest
 from qek.data.extractors import QutipExtractor, BaseExtracted
 
 if os.name == "posix":
@@ -16,8 +17,10 @@ from qek.data.graphs import PTCFMCompiler
 @pytest.mark.asyncio
 async def test_async_emulators() -> None:
     """
-    Test that emulators can execute without exploding (both sync and async).
+    Test that extractors emulators can execute without exploding (both sync and async).
     """
+    conftest.preload_dataset()
+
     # Load dataset
     original_ptcfm_data = [
         cast(pyg_data.Data, d) for d in pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
