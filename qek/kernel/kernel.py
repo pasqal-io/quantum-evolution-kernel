@@ -49,7 +49,7 @@ class QuantumEvolutionKernel:
         self.params: dict[str, Any] = {
             "mu": mu,
             "size_max": size_max,
-            "similarity": similarity if similarity is not None else self.js_similarity,
+            "similarity": similarity,
         }
         self.X: Sequence[ProcessedData]
         self.kernel_matrix: np.ndarray
@@ -100,7 +100,7 @@ class QuantumEvolutionKernel:
         # are empty. In such cases, `dist_excitation` will never be called, so we're ok.
         feat_rows = [row.dist_excitation(size_max) for row in X1]
         similarity: Callable[[NDArray[np.floating], NDArray[np.floating]], np.floating] = (
-            self.params["similarity"]
+            self.params.get("similarity", self.default_similarity)
         )
         if X2 is None:
             # Fast path:
@@ -129,9 +129,13 @@ class QuantumEvolutionKernel:
                     kernel[i, j] = similarity(dist_row, dist_col)
         return kernel
 
-    def js_similarity(self, row: NDArray[np.floating], col: NDArray[np.floating]) -> np.floating:
+    def default_similarity(
+        self, row: NDArray[np.floating], col: NDArray[np.floating]
+    ) -> np.floating:
         """
         The Jensen-Shannon similarity metric used to compute the kernel, used when calling `kernel(X1, X2)`.
+
+        This is the default similarity, if no parameter `similarity` is provided.
         """
         js = jensenshannon(row, col) ** 2
         mu = float(self.params["mu"])
