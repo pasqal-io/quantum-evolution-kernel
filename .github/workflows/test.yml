@@ -33,22 +33,6 @@ jobs:
     - name: Install Hatch
       run: |
         pip install hatch
-    - name: Pre-download dataset
-        # On macOS (and only on macOS), we encounter a strange issue:
-        #
-        # - loading the dataset causes a FileNotFoundException to be raised
-        # - checking afterwards, the dataset *is* on the disk
-        # - rerunning the process, the dataset is found.
-        #
-        # The running hypothesis is that pytorch-geometric downloads the
-        # dataset asynchronously, but fails to wait until the download is
-        # complete.
-        #
-        # With this small script, we force the pipeline to wait until the
-        # download is complete. So far, this seems to solve the issue.
-      if: ${{ matrix.os == 'macos-latest' }}
-      run: |
-        hatch -v run before_tests
     - name: Run tests
       run: |
         hatch -v run test
