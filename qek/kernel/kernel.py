@@ -1,3 +1,7 @@
+"""
+The Quantum Evolution Kernel itself, for use in a machine-learning pipeline.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -9,11 +13,11 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial.distance import jensenshannon
 
-from qek.data.dataset import ProcessedData
+from qek.data.processed_data import ProcessedData
 
 
 class QuantumEvolutionKernel:
-    """QuantumEvolutionKernel class.
+    """Implementation of the Quantum Evolution Kernel.
 
     Attributes:
     - params (dict): Dictionary of training parameters. As of this writing, the only

@@ -1,3 +1,7 @@
+"""
+Misc utility code that doesn't quite fit anywhere else.
+"""
+
 from __future__ import annotations
 
 import networkx as nx

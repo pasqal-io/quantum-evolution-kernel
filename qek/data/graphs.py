@@ -1,3 +1,7 @@
+"""
+Loading graphs as raw data.
+"""
+
 from __future__ import annotations
 
 import abc
@@ -15,7 +19,7 @@ import torch_geometric.utils as pyg_utils
 from rdkit.Chem import AllChem
 
 from qek.shared.error import CompilationError
-from qek.utils import graph_to_mol
+from qek.shared._utils import graph_to_mol
 
 logger = logging.getLogger(__name__)
 

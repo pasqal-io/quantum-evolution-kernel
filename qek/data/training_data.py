@@ -1,3 +1,7 @@
+"""
+Manipulating training data
+"""
+
 import torch
 import torch.utils.data as torch_data
 

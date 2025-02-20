@@ -1,3 +1,8 @@
+"""
+Exceptions raised within this library.
+"""
+
+
 class CompilationError(Exception):
     """
     An error raised when attempting to compile a graph for an architecture
