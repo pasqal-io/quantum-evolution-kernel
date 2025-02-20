@@ -15,7 +15,7 @@ class PygRetrier:
     """
     During experiments, we have regularly encountered issues when attempting to load
     pytorch geometric datasets, which sometimes seem to non-deterministically raise
-    FileNotFoundError or RuntimeError on the first attempt, and succeed on the second.
+    FileNotFoundError, RuntimeError or OSError on the first attempt, and succeed on the second.
 
     In the absence of a solution, this class provides a workaround, by retrying the
     load until it succeeds.
@@ -37,11 +37,8 @@ class PygRetrier:
         """
         Attempt to call a function or constructor repeatedly until, hopefully,
         it works.
-
-        We catch FileNotFoundError and RuntimeError as these are the two exceptions
-        that pytorch geometric seems to raise non-deterministically in our tests.
         """
-        exn: FileNotFoundError | RuntimeError | None = None
+        exn: FileNotFoundError | RuntimeError | OSError | None = None
         result = None
         for i in range(self._max_attempts):
             sleep(i * i)
@@ -51,7 +48,7 @@ class PygRetrier:
                 logger.debug("%s: attempt %s succeeded", self.name, i + 1)
                 exn = None
                 break
-            except (FileNotFoundError, RuntimeError) as e:
+            except (FileNotFoundError, RuntimeError, OSError) as e:
                 logger.warning("%s: attempt %s failed: %s", self.name, i + 1, e)
                 exn = e
         if exn is not None:
