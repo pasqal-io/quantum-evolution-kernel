@@ -4,12 +4,9 @@ repo_name: "Quantum Evolution Kernel"
 
 nav:
   - Overview: index.md
-  - Reference:
-      $api/qek.***
-  - License:
-      ../LICENSE
-  - CLA:
-      CONTRIBUTOR LICENSE AGREEMENT.md
+  - Reference: $api/qek.***
+  - License: LICENSE.md
+  - CLA: CONTRIBUTOR LICENSE AGREEMENT.md
 
 theme:
   name: material

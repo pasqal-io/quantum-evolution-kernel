@@ -1,3 +1,7 @@
+"""
+Low-level tools to execute compiled registers and pulses onto Quantum Devices, including local emulators, remote emulators and physical QPUs.
+"""
+
 import abc
 import asyncio
 from math import ceil
@@ -13,7 +17,7 @@ from pulser_simulation import QutipEmulator
 
 from qek.data.extractors import deserialize_device
 from qek.shared.error import CompilationError
-from qek.utils import make_sequence
+from qek.shared._utils import make_sequence
 
 
 class BaseBackend(abc.ABC):

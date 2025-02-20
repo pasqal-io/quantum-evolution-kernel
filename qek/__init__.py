@@ -4,10 +4,4 @@ The Quantum Evolution Kernel is a Python library designed for the machine learni
 The core of the library is focused on the development of a classification algorithm for molecular-graph dataset as it is presented in the published paper [Quantum feature maps for graph machine learning on a neutral atom quantum processor](https://journals.aps.org/pra/abstract/10.1103/PhysRevA.107.042615).
 
 Users setting their first steps into quantum computing will learn how to implement the core algorithm in a few simple steps and run it using the Pasqal Neutral Atom QPU. More experienced users will find this library to provide the right environment to explore new ideas - both in terms of methodologies and data domain - while always interacting with a simple and intuitive QPU interface.
-
-Submodules:
-    backends: Low-level API to run a compilation result on an emulator or a physical QPU.
-    data: Load and process graphs, including high-level API.
-    kernel: The Quantum Evolution Kernel itself, for use in a machine-learning pipeline.
-    shared: Various utilities.
 """

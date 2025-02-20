@@ -1,3 +1,7 @@
+"""
+Loading, saving, manipulation or processed data.
+"""
+
 import collections
 import json
 from typing import Final
@@ -8,7 +12,7 @@ import numpy as np
 import pulser as pl
 
 from qek.data.graphs import EPSILON_RADIUS_UM
-from qek.utils import make_sequence
+from qek.shared._utils import make_sequence
 
 logger = logging.getLogger(__name__)
 

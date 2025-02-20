@@ -1,3 +1,8 @@
+"""
+High-Level API to compile raw data (graphs) and process it on a quantum device, either a local emulator,
+a remote emulator or a physical QPI.
+"""
+
 import abc
 import asyncio
 from dataclasses import dataclass
@@ -23,9 +28,9 @@ from pulser.json.abstract_repr.deserializer import deserialize_device
 from pulser_simulation import QutipEmulator
 from torch.utils.data import Dataset
 
-from qek.data import dataset
+from qek.data import processed_data
 from qek.data.graphs import BaseGraph, BaseGraphCompiler
-from qek.data.dataset import ProcessedData
+from qek.data.processed_data import ProcessedData
 from qek.shared.error import CompilationError
 
 logger = logging.getLogger(__name__)
@@ -80,7 +85,7 @@ class BaseExtracted(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def processed_data(self) -> list[dataset.ProcessedData]:
+    def processed_data(self) -> list[processed_data.ProcessedData]:
         pass
 
     @property
@@ -130,7 +135,7 @@ class BaseExtracted(abc.ABC):
             # The only way size_max can be None is if `self.sequences` is empty.
             return []
 
-        return [Feature(dataset.dist_excitation(state, size_max)) for state in self.states]
+        return [Feature(processed_data.dist_excitation(state, size_max)) for state in self.states]
 
     def save_dataset(self, file_path: Path) -> None:
         """Saves the processed dataset to a JSON file.

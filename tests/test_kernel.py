@@ -1,4 +1,4 @@
-import qek.data.dataset as qek_dataset
+import qek.data.processed_data as qek_dataset
 from qek.kernel import QuantumEvolutionKernel
 
 

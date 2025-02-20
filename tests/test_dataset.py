@@ -1,5 +1,5 @@
 from numpy import ndarray
-import qek.data.dataset as qek_dataset
+import qek.data.processed_data as qek_dataset
 
 
 def test_excitation_distribution() -> None:
