@@ -4,6 +4,12 @@ repo_name: "Quantum Evolution Kernel"
 
 nav:
   - Overview: index.md
+  - Reference:
+      $api/qek.***
+  - License:
+      ../LICENSE
+  - CLA:
+      CONTRIBUTOR LICENSE AGREEMENT.md
 
 theme:
   name: material
@@ -46,6 +52,7 @@ plugins:
 - search
 - section-index
 - markdown-exec
+- mkapi
 - mkdocstrings:
     default_handler: python
     handlers:
