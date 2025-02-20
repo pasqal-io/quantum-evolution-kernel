@@ -13,7 +13,7 @@ Users setting their first steps into quantum computing will learn how to impleme
 
 Edit file `pyproject.toml` to add the line
 
-```toml
+```
   "quantum-evolution-kernel"
 ```
 
