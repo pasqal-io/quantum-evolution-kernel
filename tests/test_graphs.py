@@ -6,7 +6,6 @@ import torch
 import torch_geometric.datasets as pyg_dataset
 import torch_geometric.utils as pyg_utils
 from torch_geometric.data import Data
-import conftest
 
 from qek.data.graphs import (
     BaseGraph,
@@ -16,13 +15,12 @@ from qek.data.graphs import (
     NXGraphCompiler,
     NXWithPos,
 )
+from qek.shared.retrier import PygRetrier
 
 
 def test_graph_init() -> None:
-    conftest.preload_dataset()
-
     # Load dataset
-    original_ptcfm_data = pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
+    original_ptcfm_data = PygRetrier().insist(pyg_dataset.TUDataset, root="dataset", name="PTC_FM")
 
     # Check that `add_graph_coord` doesn't break with this dataset.
 
