@@ -6,7 +6,7 @@ nav:
   - Overview: index.md
   - Reference: $api/qek.***
   - License: LICENSE.md
-  - CLA: CONTRIBUTOR LICENSE AGREEMENT.md
+  - CLA: CONTRIBUTOR AGREEMENT.md
 
 theme:
   name: material
