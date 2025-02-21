@@ -24,10 +24,10 @@ class BaseKernel(abc.ABC, Generic[KernelData]):
     """
     Base class for implementations of the Quantum Evolution Kernel.
 
-    Unless youre implementing a new kernel, you should probably consider using one of
-    the subclasses:
-    - QuantumEvolutionKernel (lower-level API, optimized for local use);
-    - IntegratedQuantumEvolutionKernel (higher-level API, generally slower).
+    Unless you are implementing a new kernel, you should probably consider
+    using one of the subclasses:
+    - QuantumEvolutionKernel (lower-level API, requires processed data, optimized);
+    - IntegratedQuantumEvolutionKernel (higher-level API, accepts graphs, slower).
 
     Attributes:
     - X (Sequence[ProcessedData]): Training data used for fitting the kernel.
