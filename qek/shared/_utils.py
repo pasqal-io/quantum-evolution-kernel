@@ -65,6 +65,22 @@ def inverse_one_hot(array: npt.ArrayLike, dim: int) -> np.ndarray:
 
 
 def make_sequence(device: Device, pulse: Pulse, register: Register) -> pulser.Sequence:
+    """
+    Build a sequence for a device from a pulse and a register.
+
+    This function is mostly intended for internal use and will likely move to qool-layer
+    in time.
+
+    Arguments:
+        device: The quantum device for which the sequence is built. Used to detect if
+            a pulse + register is not compatible with a device.
+        pulse: The laser pulse to apply. It will be added as a Rydberg global channel.
+        register: The geometry for the sequence. If the device expects an automatic
+            layout, this must already have been normalized with `with_automatic_layout`.
+
+    Raises:
+        CompilationError if the pulse + register are not compatible with the device.
+    """
     try:
         sequence = pulser.Sequence(register=register, device=device)
         sequence.declare_channel("ising", "rydberg_global")

@@ -4,7 +4,7 @@ The Quantum Evolution Kernel itself, for use in a machine-learning pipeline.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable, cast
 import collections
 import copy
 from collections.abc import Sequence
@@ -28,7 +28,14 @@ class QuantumEvolutionKernel:
 
     """
 
-    def __init__(self, mu: float, size_max: int | None = None):
+    def __init__(
+        self,
+        mu: float,
+        size_max: int | None = None,
+        similarity: (
+            Callable[[NDArray[np.floating], NDArray[np.floating]], np.floating] | None
+        ) = None,
+    ):
         """Initialize the QuantumEvolutionKernel.
 
         Args:
@@ -36,10 +43,13 @@ class QuantumEvolutionKernel:
             size_max (int, optional): If specified, only consider the first `size_max`
                 qubits of bitstrings. Otherwise, consider all qubits. You may use this
                 to trade precision in favor of speed.
+            similarity (optional): If specified, a custom similarity metric to use. Otherwise,
+                use the Jensen-Shannon divergence.
         """
         self.params: dict[str, Any] = {
             "mu": mu,
             "size_max": size_max,
+            "similarity": similarity,
         }
         self.X: Sequence[ProcessedData]
         self.kernel_matrix: np.ndarray
@@ -88,9 +98,14 @@ class QuantumEvolutionKernel:
 
         # Note: At this stage, size_max could theoretically still be `None``, if both `X1` and `X2`
         # are empty. In such cases, `dist_excitation` will never be called, so we're ok.
-
-        mu = float(self.params["mu"])
         feat_rows = [row.dist_excitation(size_max) for row in X1]
+        similarity = cast(
+            Callable[[NDArray[np.floating], NDArray[np.floating]], np.floating],
+            self.params["similarity"],
+        )
+
+        if similarity is None:
+            similarity = self.default_similarity
 
         if X2 is None:
             # Fast path:
@@ -104,11 +119,10 @@ class QuantumEvolutionKernel:
             for i, dist_row in enumerate(feat_rows):
                 for j in range(i, len(feat_rows)):
                     dist_col = feat_rows[j]
-                    js = jensenshannon(dist_row, dist_col) ** 2
-                    similarity = np.exp(-mu * js)
-                    kernel[i, j] = similarity
+                    s = similarity(dist_row, dist_col)
+                    kernel[i, j] = s
                     if j != i:
-                        kernel[j, i] = similarity
+                        kernel[j, i] = s
         else:
             # Slow path:
             # - we need to compute a `feat_columns`
@@ -117,9 +131,20 @@ class QuantumEvolutionKernel:
             feat_columns = [col.dist_excitation(size_max) for col in X2]
             for i, dist_row in enumerate(feat_rows):
                 for j, dist_col in enumerate(feat_columns):
-                    js = jensenshannon(dist_row, dist_col) ** 2
-                    kernel[i, j] = np.exp(-mu * js)
+                    kernel[i, j] = similarity(dist_row, dist_col)
         return kernel
+
+    def default_similarity(
+        self, row: NDArray[np.floating], col: NDArray[np.floating]
+    ) -> np.floating:
+        """
+        The Jensen-Shannon similarity metric used to compute the kernel, used when calling `kernel(X1, X2)`.
+
+        This is the default similarity, if no parameter `similarity` is provided.
+        """
+        js = jensenshannon(row, col) ** 2
+        mu = float(self.params["mu"])
+        return np.exp(-mu * js)
 
     def similarity(self, graph_1: ProcessedData, graph_2: ProcessedData) -> float:
         """Compute the similarity between two graphs using Jensen-Shannon
