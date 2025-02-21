@@ -4,8 +4,8 @@ import os
 import pytest
 import torch_geometric.data as pyg_data
 import torch_geometric.datasets as pyg_dataset
-import conftest
 from qek.data.extractors import QutipExtractor, BaseExtracted
+from qek.shared.retrier import PygRetrier
 
 if os.name == "posix":
     # As of this writing, emu-mps only works under Unix.
@@ -19,11 +19,10 @@ async def test_async_emulators() -> None:
     """
     Test that extractors emulators can execute without exploding (both sync and async).
     """
-    conftest.preload_dataset()
-
     # Load dataset
     original_ptcfm_data = [
-        cast(pyg_data.Data, d) for d in pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
+        cast(pyg_data.Data, d)
+        for d in PygRetrier().insist(pyg_dataset.TUDataset, root="dataset", name="PTC_FM")
     ]
     MAX_NUMBER_OF_SAMPLES = 5
     MAX_NUMBER_OF_QUBITS = 5

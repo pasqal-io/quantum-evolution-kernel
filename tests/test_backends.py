@@ -3,11 +3,11 @@ from typing import cast
 import os
 import pulser as pl
 import pytest
-import conftest
 import torch_geometric.data as pyg_data
 import torch_geometric.datasets as pyg_dataset
 from qek.backends import CompilationError, QutipBackend, BaseBackend
 import qek.data.graphs as qek_graphs
+from qek.shared.retrier import PygRetrier
 
 if os.name == "posix":
     # As of this writing, emu-mps only works under Unix.
@@ -19,11 +19,11 @@ async def test_async_emulators() -> None:
     """
     Test that backends based on emulators can execute without exploding (async).
     """
-    conftest.preload_dataset()
 
     # Load dataset
     original_ptcfm_data = [
-        cast(pyg_data.Data, d) for d in pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
+        cast(pyg_data.Data, d)
+        for d in PygRetrier().insist(pyg_dataset.TUDataset, root="dataset", name="PTC_FM")
     ]
 
     compiled: list[tuple[qek_graphs.BaseGraph, pl.Register, pl.Pulse]] = []
