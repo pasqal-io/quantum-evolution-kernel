@@ -13,12 +13,10 @@ logger = logging.getLogger(__name__)
 
 class PygRetrier:
     """
-    During experiments, we have regularly encountered issues when attempting to load
-    pytorch geometric datasets, which sometimes seem to non-deterministically raise
-    FileNotFoundError, RuntimeError or OSError on the first attempt, and succeed on the second.
+    Our test harness attempts to run tests concurrently, but the pyg dataset loader does not
+    work well with concurrency.
 
-    In the absence of a solution, this class provides a workaround, by retrying the
-    load until it succeeds.
+    We work around this by simply retrying the loads a few times, until it succeeds.
     """
 
     def __init__(self, max_attempts: int = 3, name: str = "PygRetrier"):
