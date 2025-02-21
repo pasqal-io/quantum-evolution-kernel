@@ -18,4 +18,4 @@ Users setting their first steps into quantum computing will learn how to impleme
 
 The GitHub repository is open for contributions!
 
-Don't forget to read the [Contributor License Agreement](https://github.com/pasqal-io/quantum-evolution-kernel/blob/main/docs/index.md).
+Don't forget to read the [Contributor License Agreement](CONTRIBUTOR AGREEMENT.md).
