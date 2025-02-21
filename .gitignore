@@ -46,6 +46,7 @@ Pipfile
 runs/
 *venv
 *~
+dataset/
 
 # Mkdocs
 site/
