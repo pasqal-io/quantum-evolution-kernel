@@ -211,7 +211,7 @@ def test_basic_compile() -> None:
     Test basic properties of the various compilers. Mostly that they don't explode.
     """
     # Load dataset
-    original_ptcfm_data = pyg_dataset.TUDataset(root="dataset", name="PTC_FM")
+    original_ptcfm_data = PygRetrier().insist(pyg_dataset.TUDataset, root="dataset", name="PTC_FM")
 
     # Testing PygWithPosCompiler
     pyg_with_pos_compiler = PygWithPosCompiler()
