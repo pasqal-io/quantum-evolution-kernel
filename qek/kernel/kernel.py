@@ -5,7 +5,7 @@ The Quantum Evolution Kernel itself, for use in a machine-learning pipeline.
 from __future__ import annotations
 
 import abc
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, Callable, Generic, TypeVar, cast
 import collections
 import copy
 from collections.abc import Sequence
@@ -26,8 +26,8 @@ class BaseKernel(abc.ABC, Generic[KernelData]):
 
     Unless you are implementing a new kernel, you should probably consider
     using one of the subclasses:
-    - QuantumEvolutionKernel (lower-level API, requires processed data, optimized);
-    - IntegratedQuantumEvolutionKernel (higher-level API, accepts graphs, slower).
+    - FastQEK (lower-level API, requires processed data, optimized);
+    - IntegratedQEK (higher-level API, accepts graphs, slower).
 
     Attributes:
     - X (Sequence[ProcessedData]): Training data used for fitting the kernel.
@@ -52,7 +52,7 @@ class BaseKernel(abc.ABC, Generic[KernelData]):
             Callable[[NDArray[np.floating], NDArray[np.floating]], np.floating] | None
         ) = None,
     ):
-        """Initialize the QuantumEvolutionKernel.
+        """Initialize the kernel.
 
         Args:
             mu (float): Scaling factor for the Jensen-Shannon divergence
@@ -63,7 +63,6 @@ class BaseKernel(abc.ABC, Generic[KernelData]):
                 use the Jensen-Shannon divergence.
         """
         self._params: dict[str, Any] = {
-            "size_max": size_max,
             "mu": mu,
             "size_max": size_max,
             "similarity": similarity,
@@ -130,9 +129,8 @@ class BaseKernel(abc.ABC, Generic[KernelData]):
         # Note: At this stage, size_max could theoretically still be `None``, if both `X1` and `X2`
         # are empty. In such cases, `dist_excitation` will never be called, so we're ok.
 
-        mu = float(self._params["mu"])
         feat_rows = [row.dist_excitation(size_max) for row in p1]
-	similarity = cast(
+        similarity = cast(
             Callable[[NDArray[np.floating], NDArray[np.floating]], np.floating],
             self._params["similarity"],
         )
@@ -317,8 +315,8 @@ class BaseKernel(abc.ABC, Generic[KernelData]):
         return copy.deepcopy(self._params)
 
 
-class QuantumEvolutionKernel(BaseKernel[ProcessedData]):
-    """QuantumEvolutionKernel class.
+class FastQEK(BaseKernel[ProcessedData]):
+    """FastQEK class.
 
     Attributes:
     - X (Sequence[ProcessedData]): Training data used for fitting the kernel.
@@ -331,7 +329,7 @@ class QuantumEvolutionKernel(BaseKernel[ProcessedData]):
             to trade precision in favor of speed.
 
     Note: This class does **not** accept raw data, but rather `ProcessedData`. See
-    class IntegratedQuantumEvolutionKernel for a subclass that provides a more powerful API,
+    class IntegratedQEK for a subclass that provides a more powerful API,
     at the expense of performance.
     """
 
@@ -342,7 +340,7 @@ class QuantumEvolutionKernel(BaseKernel[ProcessedData]):
         return X
 
 
-class IntegratedQuantumEvolutionKernel(BaseKernel[GraphType]):
+class IntegratedQEK(BaseKernel[GraphType]):
     """
     A variant of the Quantum Evolution Kernel that supports fit/transform/fit_transform from raw data (graphs).
 
@@ -364,16 +362,17 @@ class IntegratedQuantumEvolutionKernel(BaseKernel[GraphType]):
             use the Jensen-Shannon divergence.
     """
 
-    def __init__(self,
-		mu: float,
-		extractor: BaseExtractor[GraphType],
-		size_max: int | None = None,
-		similarity: (
-		    Callable[[NDArray[np.floating], NDArray[np.floating]], np.floating] | None
-		) = None,
-	):
+    def __init__(
+        self,
+        mu: float,
+        extractor: BaseExtractor[GraphType],
+        size_max: int | None = None,
+        similarity: (
+            Callable[[NDArray[np.floating], NDArray[np.floating]], np.floating] | None
+        ) = None,
+    ):
         """
-        Initialize an IntegratedQuantumEvolutionKernel
+        Initialize an IntegratedQEK
 
         Arguments:
             mu (float): Scaling factor for the Jensen-Shannon divergence
