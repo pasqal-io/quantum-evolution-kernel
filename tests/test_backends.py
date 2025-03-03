@@ -5,13 +5,14 @@ import pulser as pl
 import pytest
 import torch_geometric.data as pyg_data
 import torch_geometric.datasets as pyg_dataset
-from qek.backends import CompilationError, QutipBackend, BaseBackend
+from qek.target import ir
+from qek.target.backends import CompilationError, QutipBackend, BaseBackend
 import qek.data.graphs as qek_graphs
 from qek.shared.retrier import PygRetrier
 
 if os.name == "posix":
     # As of this writing, emu-mps only works under Unix.
-    from qek.backends import EmuMPSBackend
+    from qek.target.backends import EmuMPSBackend
 
 
 @pytest.mark.asyncio
@@ -23,16 +24,18 @@ async def test_async_emulators() -> None:
     # Load dataset
     original_ptcfm_data = [
         cast(pyg_data.Data, d)
-        for d in PygRetrier().insist(pyg_dataset.TUDataset, root="dataset", name="PTC_FM")
+        for d in PygRetrier().insist(
+            pyg_dataset.TUDataset, root="dataset/test_async_emulators", name="PTC_FM"
+        )
     ]
 
-    compiled: list[tuple[qek_graphs.BaseGraph, pl.Register, pl.Pulse]] = []
+    compiled: list[tuple[qek_graphs.BaseGraph, ir.Register, ir.Pulse]] = []
     for i, data in enumerate(original_ptcfm_data):
         graph = qek_graphs.PTCFMGraph(data=data, device=pl.AnalogDevice, id=i)
         try:
             register = graph.compile_register()
             pulse = graph.compile_pulse()
-            if len(register.qubits) >= 5:
+            if len(register) >= 5:
                 # This will be too slow to execute, skip.
                 continue
         except CompilationError:

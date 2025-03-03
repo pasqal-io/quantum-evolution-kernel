@@ -310,9 +310,9 @@ class BaseExtractor(abc.ABC, Generic[GraphType]):
             try:
                 register = graph.compile_register()
                 pulse = graph.compile_pulse()
-                sequence = pl.Sequence(register=register, device=graph.device)
+                sequence = pl.Sequence(register=register.register, device=graph.device)
                 sequence.declare_channel("ising", "rydberg_global")
-                sequence.add(pulse, "ising")
+                sequence.add(pulse.pulse, "ising")
             except CompilationError as e:
                 # In some cases, we produce graphs that pass `is_embeddable` but cannot be compiled.
                 # It _looks_ like this is due to rounding errors. We're investigating this in issue #29,

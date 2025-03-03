@@ -19,6 +19,7 @@ import torch_geometric.data as pyg_data
 import torch_geometric.utils as pyg_utils
 from rdkit.Chem import AllChem
 
+from qek.target import ir
 from qek.shared.error import CompilationError
 from qek.shared._utils import graph_to_mol
 
@@ -199,7 +200,7 @@ class BaseGraph:
     SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US = 1.0 * 2 * np.pi
     SEQUENCE_DEFAULT_DURATION_NS = 660
 
-    def compile_register(self) -> pl.Register:
+    def compile_register(self) -> ir.Register:
         """Create a Quantum Register based on a graph.
 
         Returns:
@@ -225,13 +226,13 @@ class BaseGraph:
             pl.Sequence(register=reg, device=self.device)
         except ValueError as e:
             raise CompilationError(f"The graph is not compatible with {self.device}: {e}")
-        return reg
+        return ir.Register(device=self.device, register=reg)
 
     def compile_pulse(
         self,
         normalized_amplitude: float | None = None,
         normalized_duration: float | None = None,
-    ) -> pl.Pulse:
+    ) -> ir.Pulse:
         """Extract a Pulse for this graph.
 
         A Pulse represents the laser applied to the atoms on the device.
@@ -290,7 +291,7 @@ class BaseGraph:
             detuning=pl.waveforms.RampWaveform(absolute_duration, 0, 0),
             phase=0.0,
         )
-        return pulse
+        return ir.Pulse(pulse)
 
 
 class MoleculeGraph(BaseGraph):

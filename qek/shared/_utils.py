@@ -8,10 +8,11 @@ import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pulser
-from pulser import Pulse, Register
 from pulser.devices import Device
 from qek.shared.error import CompilationError
 import rdkit.Chem as Chem
+
+from qek.target import ir
 
 
 def graph_to_mol(
@@ -64,7 +65,7 @@ def inverse_one_hot(array: npt.ArrayLike, dim: int) -> np.ndarray:
     return np.nonzero(tmp_array == 1.0)[dim]
 
 
-def make_sequence(device: Device, pulse: Pulse, register: Register) -> pulser.Sequence:
+def make_sequence(device: Device, pulse: ir.Pulse, register: ir.Register) -> pulser.Sequence:
     """
     Build a sequence for a device from a pulse and a register.
 
@@ -82,9 +83,9 @@ def make_sequence(device: Device, pulse: Pulse, register: Register) -> pulser.Se
         CompilationError if the pulse + register are not compatible with the device.
     """
     try:
-        sequence = pulser.Sequence(register=register, device=device)
+        sequence = pulser.Sequence(register=register.register, device=device)
         sequence.declare_channel("ising", "rydberg_global")
-        sequence.add(pulse, "ising")
+        sequence.add(pulse.pulse, "ising")
         return sequence
     except ValueError as e:
         raise CompilationError(f"This pulse/register cannot be executed on the device: {e}")
