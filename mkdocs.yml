@@ -1,5 +1,5 @@
 site_name: Quantum Evolution Kernel
-repo_url: "https://gitlab.pasqal.com/pqs/quantum-evolution-kernel"
+repo_url: "https://github.com/pasqal-io/quantum-evolution-kernel"
 repo_name: "Quantum Evolution Kernel"
 
 nav:
