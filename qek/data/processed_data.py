@@ -69,7 +69,7 @@ class ProcessedData:
         self.target = target
 
     @classmethod
-    def from_register(
+    def custom(
         cls,
         register: ir.Register,
         pulse: ir.Pulse,
