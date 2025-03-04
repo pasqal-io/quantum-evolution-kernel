@@ -229,18 +229,18 @@ class BaseGraph:
 
     def compile_pulse(
         self,
-        amplitude: float | None = None,
-        duration: float | None = None,
+        normalized_amplitude: float | None = None,
+        normalized_duration: float | None = None,
     ) -> pl.Pulse:
         """Extract a Pulse for this graph.
 
         A Pulse represents the laser applied to the atoms on the device.
 
         Arguments:
-            amplitude (optional): The amplitude for the laser pulse, as a value in [0, 1],
+            normalized_amplitude (optional): The normalized amplitude for the laser pulse, as a value in [0, 1],
                 where 0 is no pulse and 1 is the maximal amplitude for the device. By default,
                 use the value demonstrated in the companion paper.
-            duration (optional): The duration of the laser pulse, as a value in [0, 1],
+            normalized_duration (optional): The normalized duration of the laser pulse, as a value in [0, 1],
                 where 0 is the shortest possible duration and 1 is the longest possible
                 duration. By default, use the value demonstrated in the companion paper.
         """
@@ -258,29 +258,31 @@ class BaseGraph:
         max_duration = channel.max_duration
         assert max_duration is not None
 
-        if amplitude is None:
+        if normalized_amplitude is None:
             absolute_amplitude = self.SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US
             if absolute_amplitude > max_amp:
                 # Unlikely, but let's defend in depth.
                 raise ValueError(
-                    f"This device does not support pulses with amplitude {absolute_amplitude} rad per us"
+                    f"This device does not support pulses with amplitude {absolute_amplitude} rad per us, amplitudes should be <= {max_amp}"
                 )
         else:
-            if amplitude < 0 or amplitude > 1:
+            if normalized_amplitude < 0 or normalized_amplitude > 1:
                 raise ValueError("Invalid amplitude, expected a value in [0, 1] or None")
-            absolute_amplitude = amplitude * max_amp
+            absolute_amplitude = normalized_amplitude * max_amp
 
-        if duration is None:
+        if normalized_duration is None:
             absolute_duration = self.SEQUENCE_DEFAULT_DURATION_NS
             if absolute_duration < min_duration or absolute_duration > max_duration:
                 # Unlikely, but let's defend in depth.
                 raise ValueError(
-                    f"This device does not support pulses with duration {absolute_duration} ns"
+                    f"This device does not support pulses with duration {absolute_duration} ns, pulses should be within [{min_duration}, {max_duration}]"
                 )
         else:
-            if duration < 0 or duration > 1:
+            if normalized_duration < 0 or normalized_duration > 1:
                 raise ValueError("Invalid duration, expected a value in [0, 1] or None")
-            absolute_duration = math.ceil(duration * (max_duration - min_duration)) + min_duration
+            absolute_duration = (
+                math.ceil(normalized_duration * (max_duration - min_duration)) + min_duration
+            )
 
         # For an explanation on these constants, see the companion paper.
         pulse = pl.Pulse.ConstantAmplitude(
