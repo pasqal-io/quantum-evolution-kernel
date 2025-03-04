@@ -7,6 +7,7 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass
 import logging
+import math
 from typing import Any, Final, Generic, TypeVar
 
 import networkx as nx
@@ -228,29 +229,65 @@ class BaseGraph:
 
     def compile_pulse(
         self,
-        amplitude: float = SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US,
-        duration: int = SEQUENCE_DEFAULT_DURATION_NS,
+        normalized_amplitude: float | None = None,
+        normalized_duration: float | None = None,
     ) -> pl.Pulse:
         """Extract a Pulse for this graph.
 
         A Pulse represents the laser applied to the atoms on the device.
 
         Arguments:
-            amplitude: The amplitude for the laser pulse, in rad per microseconds.
-                By default, use the value demonstrated in the companion paper.
-            duration: The duration of the laser pulse, in nanoseconds.
-                By default, use the value demonstrated in the companion paper.
+            normalized_amplitude (optional): The normalized amplitude for the laser pulse, as a value in [0, 1],
+                where 0 is no pulse and 1 is the maximal amplitude for the device. By default,
+                use the value demonstrated in the companion paper.
+            normalized_duration (optional): The normalized duration of the laser pulse, as a value in [0, 1],
+                where 0 is the shortest possible duration and 1 is the longest possible
+                duration. By default, use the value demonstrated in the companion paper.
         """
         # Note: In the low-level API, we separate register and pulse compilation for
         # pedagogical reasons, because we want to take the opportunity to teach them
         # about registers and pulses, rather than pulser sequences.
 
-        # See the companion paper for an explanation on these constants.
-        Omega_max = amplitude
-        t_max = duration
+        channel = self.device.channels["rydberg_global"]
+        assert channel is not None
+
+        max_amp = channel.max_amp
+        assert max_amp is not None
+
+        min_duration = channel.min_duration
+        max_duration = channel.max_duration
+        assert max_duration is not None
+
+        if normalized_amplitude is None:
+            absolute_amplitude = self.SEQUENCE_DEFAULT_AMPLITUDE_RAD_PER_US
+            if absolute_amplitude > max_amp:
+                # Unlikely, but let's defend in depth.
+                raise ValueError(
+                    f"This device does not support pulses with amplitude {absolute_amplitude} rad per us, amplitudes should be <= {max_amp}"
+                )
+        else:
+            if normalized_amplitude < 0 or normalized_amplitude > 1:
+                raise ValueError("Invalid amplitude, expected a value in [0, 1] or None")
+            absolute_amplitude = normalized_amplitude * max_amp
+
+        if normalized_duration is None:
+            absolute_duration = self.SEQUENCE_DEFAULT_DURATION_NS
+            if absolute_duration < min_duration or absolute_duration > max_duration:
+                # Unlikely, but let's defend in depth.
+                raise ValueError(
+                    f"This device does not support pulses with duration {absolute_duration} ns, pulses should be within [{min_duration}, {max_duration}]"
+                )
+        else:
+            if normalized_duration < 0 or normalized_duration > 1:
+                raise ValueError("Invalid duration, expected a value in [0, 1] or None")
+            absolute_duration = (
+                math.ceil(normalized_duration * (max_duration - min_duration)) + min_duration
+            )
+
+        # For an explanation on these constants, see the companion paper.
         pulse = pl.Pulse.ConstantAmplitude(
-            amplitude=Omega_max,
-            detuning=pl.waveforms.RampWaveform(t_max, 0, 0),
+            amplitude=absolute_amplitude,
+            detuning=pl.waveforms.RampWaveform(absolute_duration, 0, 0),
             phase=0.0,
         )
         return pulse
