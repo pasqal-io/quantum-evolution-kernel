@@ -13,7 +13,7 @@ import pulser as pl
 
 from qek.data.graphs import EPSILON_RADIUS_UM
 from qek.shared._utils import make_sequence
-from qek.target import ir
+from qek.target import targets
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +71,8 @@ class ProcessedData:
     @classmethod
     def custom(
         cls,
-        register: ir.Register,
-        pulse: ir.Pulse,
+        register: targets.Register,
+        pulse: targets.Pulse,
         device: pl.devices.Device,
         state_dict: dict[str, int | np.int64],
         target: int | None,

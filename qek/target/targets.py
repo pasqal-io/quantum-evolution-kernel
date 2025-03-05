@@ -4,22 +4,20 @@ Code emitted by compilation.
 In practice, this code is a very thin layer around Pulser's representation.
 """
 
+from dataclasses import dataclass
 import pulser
 
 
+@dataclass
 class Pulse:
     """
     Specification of a laser pulse to be executed on a quantum device
+
+    Attributes:
+        pulse: The low-level Pulser pulse.
     """
 
-    def __init__(
-        self,
-        pulse: pulser.Pulse,
-    ):
-        """
-        Specify a laser pulse
-        """
-        self.pulse = pulse
+    pulse: pulser.Pulse
 
     def draw(self) -> None:
         """
@@ -28,17 +26,18 @@ class Pulse:
         self.pulse.draw()
 
 
+@dataclass
 class Register:
     """
     Specification of a geometry of atoms to be executed on a quantum device
+
+    Attributes:
+        device: The quantum device targeted.
+        register: The low-level Pulser register.
     """
 
-    def __init__(self, device: pulser.devices.Device, register: pulser.Register):
-        """
-        Specify a register
-        """
-        self.register = register
-        self._device = device
+    device: pulser.devices.Device
+    register: pulser.Register
 
     def __len__(self) -> int:
         """
@@ -50,4 +49,4 @@ class Register:
         """
         Draw the geometry of this register.
         """
-        self.register.draw(blockade_radius=self._device.min_atom_distance + 0.01)
+        self.register.draw(blockade_radius=self.device.min_atom_distance + 0.01)

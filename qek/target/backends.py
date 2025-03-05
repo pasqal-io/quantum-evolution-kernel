@@ -18,7 +18,7 @@ from pulser_simulation import QutipEmulator
 from qek.data.extractors import deserialize_device
 from qek.shared.error import CompilationError
 from qek.shared._utils import make_sequence
-from qek.target import ir
+from qek.target import targets
 
 
 class BaseBackend(abc.ABC):
@@ -34,18 +34,18 @@ class BaseBackend(abc.ABC):
     def __init__(self, device: Device | None):
         self._device = device
 
-    def _make_sequence(self, register: ir.Register, pulse: ir.Pulse) -> Sequence:
+    def _make_sequence(self, register: targets.Register, pulse: targets.Pulse) -> Sequence:
         assert self._device is not None
         return make_sequence(register=register, pulse=pulse, device=self._device)
 
     @abc.abstractmethod
-    async def run(self, register: ir.Register, pulse: ir.Pulse) -> dict[str, int]:
+    async def run(self, register: targets.Register, pulse: targets.Pulse) -> Counter[str]:
         """
         Execute a register and a pulse.
 
         Returns:
-            A bitstring counter, i.e. a data structure counting for each bitstring
-            the number of instances of this bitstring observed at the end of runs.
+            A bitstring Counter, i.e. a data structure counting for each bitstring
+            the number of measured instances of this bitstring.
         """
         raise NotImplementedError
 
@@ -66,7 +66,7 @@ class QutipBackend(BaseBackend):
     def __init__(self, device: Device):
         super().__init__(device)
 
-    async def run(self, register: ir.Register, pulse: ir.Pulse) -> dict[str, int]:
+    async def run(self, register: targets.Register, pulse: targets.Pulse) -> Counter[str]:
         """
         Execute a register and a pulse.
 
@@ -75,7 +75,7 @@ class QutipBackend(BaseBackend):
             pulse: The pulse (lasers) to execute. Typically obtained by compiling a graph.
 
         Returns:
-            A bitstring counter, i.e. a data structure counting for each bitstring
+            A bitstring Counter, i.e. a data structure counting for each bitstring
             the number of instances of this bitstring observed at the end of runs.
         """
         sequence = self._make_sequence(register=register, pulse=pulse)
@@ -140,8 +140,8 @@ class BaseRemoteBackend(BaseBackend):
 
     async def _run(
         self,
-        register: ir.Register,
-        pulse: ir.Pulse,
+        register: targets.Register,
+        pulse: targets.Pulse,
         emulator: EmulatorType | None,
         config: BaseConfig | None = None,
         sleep_sec: int = 2,
@@ -200,9 +200,9 @@ class RemoteQPUBackend(BaseRemoteBackend):
         with a computation that has been previously started.
     """
 
-    async def run(self, register: ir.Register, pulse: ir.Pulse) -> dict[str, int]:
+    async def run(self, register: targets.Register, pulse: targets.Pulse) -> Counter[str]:
         job = await self._run(register, pulse, emulator=None, config=None)
-        return cast(dict[str, int], job.result)
+        return cast(Counter[str], job.result)
 
 
 class RemoteEmuMPSBackend(BaseRemoteBackend):
@@ -211,9 +211,11 @@ class RemoteEmuMPSBackend(BaseRemoteBackend):
     published on Pasqal Cloud.
     """
 
-    async def run(self, register: ir.Register, pulse: ir.Pulse, dt: int = 10) -> dict[str, int]:
+    async def run(
+        self, register: targets.Register, pulse: targets.Pulse, dt: int = 10
+    ) -> Counter[str]:
         job = await self._run(register, pulse, emulator=EmulatorType.EMU_MPS, config=None)
-        bag = cast(dict[str, dict[int, dict[str, int]]], job.result)
+        bag = cast(dict[str, dict[int, Counter[str]]], job.result)
 
         assert self._sequence is not None
         cutoff_duration = int(ceil(self._sequence.get_duration() / dt) * dt)
@@ -239,7 +241,9 @@ if os.name == "posix":
         def __init__(self, device: Device):
             super().__init__(device)
 
-        async def run(self, register: ir.Register, pulse: ir.Pulse, dt: int = 10) -> dict[str, int]:
+        async def run(
+            self, register: targets.Register, pulse: targets.Pulse, dt: int = 10
+        ) -> Counter[str]:
             sequence = self._make_sequence(register=register, pulse=pulse)
             backend = emu_mps.MPSBackend()
 
@@ -247,7 +251,5 @@ if os.name == "posix":
             cutoff_duration = int(ceil(sequence.get_duration() / dt) * dt)
             observable = emu_mps.BitStrings(evaluation_times={cutoff_duration})
             config = emu_mps.MPSConfig(observables=[observable], dt=dt)
-            counter: dict[str, int] = backend.run(sequence, config)[observable.name][
-                cutoff_duration
-            ]
+            counter: Counter[str] = backend.run(sequence, config)[observable.name][cutoff_duration]
             return counter

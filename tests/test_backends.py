@@ -5,7 +5,7 @@ import pulser as pl
 import pytest
 import torch_geometric.data as pyg_data
 import torch_geometric.datasets as pyg_dataset
-from qek.target import ir
+from qek.target import targets
 from qek.target.backends import CompilationError, QutipBackend, BaseBackend
 import qek.data.graphs as qek_graphs
 from qek.shared.retrier import PygRetrier
@@ -29,7 +29,7 @@ async def test_async_emulators() -> None:
         )
     ]
 
-    compiled: list[tuple[qek_graphs.BaseGraph, ir.Register, ir.Pulse]] = []
+    compiled: list[tuple[qek_graphs.BaseGraph, targets.Register, targets.Pulse]] = []
     for i, data in enumerate(original_ptcfm_data):
         graph = qek_graphs.PTCFMGraph(data=data, device=pl.AnalogDevice, id=i)
         try:
