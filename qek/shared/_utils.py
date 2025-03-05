@@ -8,10 +8,11 @@ import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pulser
-from pulser import Pulse, Register
 from pulser.devices import Device
 from qek.shared.error import CompilationError
 import rdkit.Chem as Chem
+
+from qek.target import targets
 
 
 def graph_to_mol(
@@ -32,11 +33,11 @@ def graph_to_mol(
     m = Chem.MolFromSmiles("")
     mw = Chem.RWMol(m)
     atom_index = {}
-    for n, d in graph.nodes(data="x"):
+    for n, d in graph.nodes(data="x"):  # type: ignore
         d = np.asarray(d)
         idx_d: int = inverse_one_hot(d, dim=0)[0]
         atom_index[n] = mw.AddAtom(Chem.Atom(node_mapping[idx_d]))
-    for a, b, d in graph.edges(data="edge_attr"):
+    for a, b, d in graph.edges(data="edge_attr"):  # type: ignore
         start = atom_index[a]
         end = atom_index[b]
         d = np.asarray(d)
@@ -64,7 +65,9 @@ def inverse_one_hot(array: npt.ArrayLike, dim: int) -> np.ndarray:
     return np.nonzero(tmp_array == 1.0)[dim]
 
 
-def make_sequence(device: Device, pulse: Pulse, register: Register) -> pulser.Sequence:
+def make_sequence(
+    device: Device, pulse: targets.Pulse, register: targets.Register
+) -> pulser.Sequence:
     """
     Build a sequence for a device from a pulse and a register.
 
@@ -82,9 +85,9 @@ def make_sequence(device: Device, pulse: Pulse, register: Register) -> pulser.Se
         CompilationError if the pulse + register are not compatible with the device.
     """
     try:
-        sequence = pulser.Sequence(register=register, device=device)
+        sequence = pulser.Sequence(register=register.register, device=device)
         sequence.declare_channel("ising", "rydberg_global")
-        sequence.add(pulse, "ising")
+        sequence.add(pulse.pulse, "ising")
         return sequence
     except ValueError as e:
         raise CompilationError(f"This pulse/register cannot be executed on the device: {e}")
