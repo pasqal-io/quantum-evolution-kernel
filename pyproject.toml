@@ -147,16 +147,16 @@ line-length = 100
 extend-ignore = ["F841"]
 select = ["E", "F", "I", "Q"]
 
-[lint.isort]
+[tool.ruff.lint.isort]
 required-imports = ["from __future__ import annotations"]
 
-[lint.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 
-[lint.mccabe]
+[tool.ruff.lint.mccabe]
 max-complexity = 15
 
-[lint.flake8-quotes]
+[tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"
 
 [tool.black]
