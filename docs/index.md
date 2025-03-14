@@ -11,8 +11,8 @@ Users setting their first steps into quantum computing will learn how to impleme
 
 We provide several tutorials:
 
-- [tutorial 1 - Using a Quantum Device to Extract Machine-Learning Features](tutorial 1 - Using a Quantum Device to Extract Machine-Learning Features)
-- [tutorial 2 - Machine-Learning with the Quantum EvolutionKernel](tutorial 2 - Machine-Learning with the Quantum EvolutionKernel)
+- [tutorial 1 - Using a Quantum Device to Extract Machine-Learning Features](tutorial 1 - Using a Quantum Device to Extract Machine-Learning Features.ipynb)
+- [tutorial 2 - Machine-Learning with the Quantum EvolutionKernel](tutorial 2 - Machine-Learning with the Quantum EvolutionKernel.ipynb)
 
 
 ## Getting in touch
