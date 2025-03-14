@@ -71,6 +71,7 @@ jobs:
             hatch run jupyter execute "$tutorial";
           done
 
+
   test_notebook_windows:
     name: Run the Jupyter notebook tutorial (Windows)
     runs-on: ${{ matrix.os }}
@@ -88,6 +89,33 @@ jobs:
       - name: Install Hatch
         run: |
           pip install hatch
+      - name: Copy samples
+        run: |
+          cp examples/ptcfm_processed_dataset.json .
+      - name: Run notebook
+        run: |
+          hatch run pip install jupyter
+          $files = Get-ChildItem -Path examples -Include *.ipynb
+          foreach($tutorial in $files) {
+            hatch run jupyter execute "$tutorial"
+          }
+
+  test_notebook_windows_miniforge:
+    name: Run the Jupyter notebook tutorial (Windows)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - name: Checkout QEK
+        uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Hatch
+        run: |
+          conda install -c conda-forge hatch
       - name: Copy samples
         run: |
           cp examples/ptcfm_processed_dataset.json .
