@@ -50,3 +50,6 @@ dataset/
 
 # Mkdocs
 site/
+docs/*.ipynb
+docs/ptcfm_processed_dataset.json
+docs/saved_data.json
