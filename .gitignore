@@ -50,3 +50,4 @@ dataset/
 
 # Mkdocs
 site/
+docs/*.ipynb

@@ -98,6 +98,7 @@ asyncio_default_fixture_loop_scope="function"
 dependencies = [
   "mkdocs",
   "mkdocs-material",
+  "mkdocs-jupyter",
   "mkdocstrings",
   "mkdocstrings-python",
   "mkdocs-section-index",

@@ -7,6 +7,13 @@ The core of the library is focused on the development of a classification algori
 
 Users setting their first steps into quantum computing will learn how to implement the core algorithm in a few simple steps and run it using the Pasqal Neutral Atom QPU. More experienced users will find this library to provide the right environment to explore new ideas - both in terms of methodologies and data domain - while always interacting with a simple and intuitive QPU interface.
 
+## Getting started
+
+We provide several tutorials:
+
+- [tutorial 1 - Using a Quantum Device to Extract Machine-Learning Features](tutorial 1 - Using a Quantum Device to Extract Machine-Learning Features)
+- [tutorial 2 - Machine-Learning with the Quantum EvolutionKernel](tutorial 2 - Machine-Learning with the Quantum EvolutionKernel)
+
 
 ## Getting in touch
 
