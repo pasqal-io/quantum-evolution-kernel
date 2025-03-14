@@ -101,7 +101,7 @@ jobs:
           }
 
   test_notebook_windows_miniforge:
-    name: Run the Jupyter notebook tutorial (Windows)
+    name: Run the Jupyter notebook tutorial (Miniforge)
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
