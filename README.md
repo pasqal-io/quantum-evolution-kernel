@@ -80,10 +80,10 @@ model.fit(X_train, y_train)
 
 We have a two parts tutorial:
 
-1. [Using a Quantum Device to extract machine-learning features](https://pasqal-io.github.io/quantum-evolution-kernel/v0.3.0/tutorial%201%20-%20Using%20a%20Quantum%20Device%20to%20Extract%20Machine-Learning%20Features);
-2. [Machine Learning with the Quantum Evolution Kernel](https://pasqal-io.github.io/quantum-evolution-kernel/v0.3.0/tutorial%202%20-%20Machine-Learning%20with%20the%20Quantum%20EvolutionKernel/)
+1. [Using a Quantum Device to extract machine-learning features](https://pasqal-io.github.io/quantum-evolution-kernel/v0.3.1/tutorial%201%20-%20Using%20a%20Quantum%20Device%20to%20Extract%20Machine-Learning%20Features);
+2. [Machine Learning with the Quantum Evolution Kernel](https://pasqal-io.github.io/quantum-evolution-kernel/v0.3.1/tutorial%202%20-%20Machine-Learning%20with%20the%20Quantum%20EvolutionKernel/)
 
-See also the [full API documentation](https://pasqal-io.github.io/quantum-evolution-kernel/v0.3.0/).
+See also the [full API documentation](https://pasqal-io.github.io/quantum-evolution-kernel/v0.3.1/).
 
 ## Getting in touch
 
