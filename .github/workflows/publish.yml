@@ -67,6 +67,9 @@ jobs:
         - name: Install Hatch
           run: |
             pip install hatch
+        - name: Build Docs
+          run: |
+            cp examples/*.ipynb docs/
         - name: Deploy docs
           run: |
             git config user.name "GitHub Actions"

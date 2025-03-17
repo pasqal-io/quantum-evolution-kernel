@@ -7,7 +7,11 @@ nav:
   - Getting started:
     - Installation: installation.md
     - Usage: usage.md
-    - Tutorials: tutorials.md
+  - Tutorials:
+    - "Tutorial 1 - Using a Quantum Device to Extract Machine-Learning Features": "tutorial 1 - Using a Quantum Device to Extract Machine-Learning Features.ipynb"
+    - "(low-level variant) Tutorial 1a - Using a Quantum Device to Extract Machine-Learning Features": "tutorial 1a - Using a Quantum Device to Extract Machine-Learning Features - low-level.ipynb"
+    - "Tutorial 2 - Machine-learning with the Quantum Evolution Kernel": "tutorial 2 - Machine-Learning with the Quantum EvolutionKernel.ipynb"
+    - "(variant) Tutorial 2b - Training SVM QEK": "tutorial 1b - Training SVM QEK - low-level - generic dataset.ipynb"
   - Reference: $api/qek.***
   - Open-source:
     - Licence (MIT-Derived): LICENSE.md
@@ -53,6 +57,12 @@ markdown_extensions:
 plugins:
 - search
 - section-index
+- mkdocs-jupyter:
+    include: ["*.ipynb"]
+    execute: True
+    remove_tag_config:
+        remove_input_tags:
+              - ignore_warnings
 - markdown-exec
 - mkapi
 - mkdocstrings:
