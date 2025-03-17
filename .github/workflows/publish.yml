@@ -70,6 +70,7 @@ jobs:
         - name: Build Docs
           run: |
             cp examples/*.ipynb docs/
+            cp examples/*.json docs/
         - name: Deploy docs
           run: |
             git config user.name "GitHub Actions"
