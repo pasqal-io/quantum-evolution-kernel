@@ -46,6 +46,7 @@ theme:
 
 markdown_extensions:
 - admonition  # for notes
+- pymdownx.details # for collapsible
 - pymdownx.arithmatex: # for mathjax
     generic: true
 - pymdownx.highlight:
