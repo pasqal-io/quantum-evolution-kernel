@@ -16,6 +16,10 @@ nav:
   - Open-source:
     - Licence (MIT-Derived): LICENSE.md
     - Contributor Agreement: CONTRIBUTOR AGREEMENT.md
+  - Contributing:
+    - First contact: contributing/first contact.md
+    - How to contribute: contributing/how to contribute.md
+    - Contributor Agreement: CONTRIBUTOR AGREEMENT.md
 
 theme:
   name: material
