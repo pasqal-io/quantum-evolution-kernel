@@ -60,6 +60,7 @@ plugins:
 - mkdocs-jupyter:
     include: ["*.ipynb"]
     execute: True
+    include_source: True
     remove_tag_config:
         remove_input_tags:
               - ignore_warnings
