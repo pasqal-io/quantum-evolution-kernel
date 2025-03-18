@@ -46,6 +46,7 @@ theme:
 
 markdown_extensions:
 - admonition  # for notes
+- pymdownx.details # for collapsible
 - pymdownx.arithmatex: # for mathjax
     generic: true
 - pymdownx.highlight:
@@ -60,6 +61,7 @@ plugins:
 - mkdocs-jupyter:
     include: ["*.ipynb"]
     execute: True
+    include_source: True
     remove_tag_config:
         remove_input_tags:
               - ignore_warnings
