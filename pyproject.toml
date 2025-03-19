@@ -76,7 +76,7 @@ dependencies = [
 [tool.hatch.envs.default.scripts]
 before_tests = "python scripts/before_tests.py"
 test = "pytest -n auto --cov-report=term-missing --cov-config=pyproject.toml --cov=qek --cov=tests --markdown-docs {args}"
-test_readme = "pytest --markdown-docs README.md"
+test_readme = "pytest --markdown-docs README.md docs/"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
