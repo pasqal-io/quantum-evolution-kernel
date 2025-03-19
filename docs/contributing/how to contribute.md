@@ -1,10 +1,10 @@
 # How to contribute
 
-We're grateful for your interest in participating in this library!
+We're grateful for your interest in contributing to this library!
 
 ## Asking questions
 
-If you have any question on this library, don't hesitate to ask them.
+If you have any question aout this library, don't hesitate to ask!
 
 For more information on how to get in touch, see our [Community Portal](https://community.pasqal.com/). In particular, we have a Community Chat, it's generally the best place to ask questions.
 
