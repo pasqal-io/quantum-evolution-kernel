@@ -1,5 +1,6 @@
 [![PyPI version](https://badge.fury.io/py/quantum-evolution-kernel.svg)](https://pypi.org/project/quantum-evolution-kernel/)
 [![Tests](https://github.com/pasqal-io/quantum-evolution-kernel/actions/workflows/test.yml/badge.svg)](https://github.com/pasqal-io/quantum-evolution-kernel/actions/workflows/test.yml)
+![Coverage](https://img.shields.io/codecov/c/github/pasqal-io/quantum-evolution-kernel?style=flat-square)
 
 # Quantum Evolution Kernel
 
