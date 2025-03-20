@@ -15,10 +15,9 @@ import time
 from typing import Any, Callable, Generator, Generic, Sequence, TypeVar, cast
 from numpy.typing import NDArray
 from pasqal_cloud import SDK
-from pasqal_cloud.batch import Batch
 from pasqal_cloud.device import BaseConfig, EmuTNConfig, EmulatorType
 from pasqal_cloud.job import Job
-from pasqal_cloud.utils.filters import BatchFilters
+from pasqal_cloud.utils.filters import JobFilters
 from pathlib import Path
 import numpy as np
 import os
@@ -561,7 +560,7 @@ class PasqalCloudExtracted(BaseExtracted):
     def __init__(
         self,
         compiled: list[Compiled],
-        batch_ids: list[str],
+        job_ids: list[str],
         sdk: SDK,
         state_extractor: Callable[[Job, pl.Sequence], dict[str, int] | None],
         path: Path | None = None,
@@ -571,13 +570,13 @@ class PasqalCloudExtracted(BaseExtracted):
 
         Arguments:
             compiled: The result of compiling a set of graphs.
-            batch_ids: The ids of the batches on the cloud API, in the same order as `compiled`.
+            job_ids: The ids of the jobs on the cloud API, in the same order as `compiled`.
             state_extractor: A callback used to extract the counter from a job.
                 Used as various cloud back-ends return different formats.
             path: If provided, a path at which to save the results once they're available.
         """
         self._compiled = compiled
-        self._batch_ids = batch_ids
+        self._job_ids = job_ids
         self._results: SyncExtracted | None = None
         self._path = path
         self._sdk = sdk
@@ -592,28 +591,28 @@ class PasqalCloudExtracted(BaseExtracted):
         if self._results is not None:
             # Results are already available.
             return
-        pending_batch_ids: set[str] = set(self._batch_ids)
-        completed_batches: dict[str, Batch] = {}
-        while len(pending_batch_ids) > 0:
+        pending_job_ids: set[str] = set(self._job_ids)
+        completed_jobs: dict[str, Job] = {}
+        while len(pending_job_ids) > 0:
             time.sleep(SLEEP_DELAY_S)
 
-            # Fetch up to 100 pending batches (upstream limits).
-            MAX_BATCH_LEN = 100
-            check_ids: list[str | UUID] = [cast(str | UUID, id) for id in pending_batch_ids][
-                :MAX_BATCH_LEN
+            # Fetch up to 100 pending jobs (upstream limits).
+            MAX_JOB_LEN = 100
+            check_ids: list[str | UUID] = [cast(str | UUID, id) for id in pending_job_ids][
+                :MAX_JOB_LEN
             ]
 
             # Update their status.
-            check_batches = self._sdk.get_batches(filters=BatchFilters(id=check_ids))
-            for batch in check_batches.results:
-                assert isinstance(batch, Batch)
-                if batch.status not in {"PENDING", "RUNNING"}:
-                    logger.debug("Job %s is now complete", batch.id)
-                    pending_batch_ids.discard(batch.id)
-                    completed_batches[batch.id] = batch
+            check_jobs = self._sdk.get_jobs(filters=JobFilters(id=check_ids))
+            for job in check_jobs.results:
+                assert isinstance(job, Job)
+                if job.status not in {"PENDING", "RUNNING"}:
+                    logger.debug("Job %s is now complete", job.id)
+                    pending_job_ids.discard(job.id)
+                    completed_jobs[job.id] = job
 
-        # At this point, all batches are complete.
-        self._ingest(completed_batches)
+        # At this point, all jobs are complete.
+        self._ingest(completed_jobs)
 
     def __await__(self) -> Generator[Any, Any, None]:
         """
@@ -628,72 +627,71 @@ class PasqalCloudExtracted(BaseExtracted):
         if self._results is not None:
             # Results are already available.
             return
-        pending_batch_ids: set[str] = set(self._batch_ids)
-        completed_batches: dict[str, Batch] = {}
-        while len(pending_batch_ids) > 0:
+        pending_job_ids: set[str] = set(self._job_ids)
+        completed_jobs: dict[str, Job] = {}
+        while len(pending_job_ids) > 0:
             yield from asyncio.sleep(SLEEP_DELAY_S).__await__()
 
-            # Fetch up to 100 pending batches (upstream limits).
-            MAX_BATCH_LEN = 100
-            check_ids: list[str | UUID] = [cast(str | UUID, id) for id in pending_batch_ids][
-                :MAX_BATCH_LEN
+            # Fetch up to 100 pending jobs (upstream limits).
+            MAX_JOB_LEN = 100
+            check_ids: list[str | UUID] = [cast(str | UUID, id) for id in pending_job_ids][
+                :MAX_JOB_LEN
             ]
 
             # Update their status.
-            check_batches = self._sdk.get_batches(
-                filters=BatchFilters(id=check_ids)
+            check_jobs = self._sdk.get_jobs(
+                filters=JobFilters(id=check_ids)
             )  # Ideally, this should be async, see https://github.com/pasqal-io/pasqal-cloud/issues/162.
-            for batch in check_batches.results:
-                assert isinstance(batch, Batch)
-                if batch.status not in {"PENDING", "RUNNING"}:
-                    logger.debug("Job %s is now complete", batch.id)
-                    pending_batch_ids.discard(batch.id)
-                    completed_batches[batch.id] = batch
+            for job in check_jobs.results:
+                assert isinstance(job, Job)
+                if job.status not in {"PENDING", "RUNNING"}:
+                    logger.debug("Job %s is now complete", job.id)
+                    pending_job_ids.discard(job.id)
+                    completed_jobs[job.id] = job
 
-        # At this point, all batches are complete.
-        self._ingest(completed_batches)
+        # At this point, all jobs are complete.
+        self._ingest(completed_jobs)
 
-    def _ingest(self, batches: dict[str, Batch]) -> None:
+    # TODO: get job instead of job
+    # TODO: update mock server to simulate progress of the jobs and not the job
+    def _ingest(self, jobs: dict[str, Job]) -> None:
         """
         Ingest data received from the remote server.
 
         No I/O.
         """
-        assert len(batches) == len(self._batch_ids)
+        assert len(jobs) == len(self._job_ids)
 
         raw_data = []
         targets: list[int] = []
         sequences = []
         states = []
-        for i, id in enumerate(self._batch_ids):
-            batch = batches[id]
+        for i, id in enumerate(self._job_ids):
+            job = jobs[id]
             compiled = self._compiled[i]
-            # Note: There's only one job per batch.
-            assert len(batch.jobs) == 1
-            for job in batch.jobs.values():
-                if job.status == "DONE":
-                    state_dict = self._state_extractor(job, compiled.sequence)
-                    if state_dict is None:
-                        logger.warning(
-                            "Batch %s (graph %s) did not return a usable state, skipping",
-                            i,
-                            compiled.graph.id,
-                        )
-                        continue
-                    raw_data.append(compiled.graph)
-                    if compiled.graph.target is not None:
-                        targets.append(compiled.graph.target)
-                    sequences.append(compiled.sequence)
-                    states.append(state_dict)
-                else:
-                    # If some sequences failed, let's skip them and proceed as well as we can.
+            if job.status == "DONE":
+                state_dict = self._state_extractor(job, compiled.sequence)
+                if state_dict is None:
                     logger.warning(
-                        "Batch %s (graph %s) failed with errors %s, skipping",
+                        "Job %s (graph %s) did not return a usable state, skipping",
                         i,
                         compiled.graph.id,
-                        job.status,
-                        job.errors,
                     )
+                    continue
+                raw_data.append(compiled.graph)
+                if compiled.graph.target is not None:
+                    targets.append(compiled.graph.target)
+                sequences.append(compiled.sequence)
+                states.append(state_dict)
+            else:
+                # If some sequences failed, let's skip them and proceed as well as we can.
+                logger.warning(
+                    "Job %s (graph %s) failed with status %s and errors %s, skipping",
+                    i,
+                    compiled.graph.id,
+                    job.status,
+                    job.errors,
+                )
         self._results = SyncExtracted(
             raw_data=raw_data, targets=targets, sequences=sequences, states=states
         )
@@ -754,9 +752,9 @@ class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
         device_name: The name of the device to use. As of this writing,
             the default value of "FRESNEL" represents the latest QPU
             available through the Pasqal Cloud API.
-        batch_id: Use this to resume a workflow e.g. after turning off
+        job_id: Use this to resume a workflow e.g. after turning off
             your computer while the QPU was executing your sequences.
-            Warning: A batch started with one executor MUST NOT be resumed
+            Warning: A job started with one executor MUST NOT be resumed
             with a different executor.
     """
 
@@ -767,7 +765,7 @@ class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
         username: str,
         device_name: str,
         password: str | None = None,
-        batch_ids: list[str] | None = None,
+        job_ids: list[str] | None = None,
         path: Path | None = None,
     ):
         sdk = SDK(username=username, project_id=project_id, password=password)
@@ -778,11 +776,11 @@ class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
 
         super().__init__(device=device, compiler=compiler, path=path)
         self._sdk = sdk
-        self._batch_ids: list[str] | None = batch_ids
+        self._job_ids: list[str] | None = job_ids
 
     @property
-    def batch_ids(self) -> list[str] | None:
-        return self._batch_ids
+    def job_ids(self) -> list[str] | None:
+        return self._job_ids
 
     @abc.abstractmethod
     def run(
@@ -803,7 +801,7 @@ class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
             logger.warning("No sequences to run, did you forget to call compile()?")
             return PasqalCloudExtracted(
                 compiled=[],
-                batch_ids=[],
+                job_ids=[],
                 sdk=self._sdk,
                 path=self.path,
                 state_extractor=state_extractor,
@@ -814,34 +812,36 @@ class BaseRemoteExtractor(BaseExtractor[GraphType], Generic[GraphType]):
         # If we want to add more runs, we'll need to split them across several jobs.
         max_runs = device.max_runs if isinstance(device.max_runs, int) else 500
 
-        if self._batch_ids is None:
+        if self._job_ids is None:
             # Enqueue jobs.
-            self._batch_ids = []
+            self._job_ids = []
             for compiled in self.sequences:
                 logger.debug("Enqueuing execution of compiled graph #%s", compiled.graph.id)
-                batch = self._sdk.create_batch(
+                job = self._sdk.create_batch(
                     compiled.sequence.to_abstract_repr(),
                     jobs=[{"runs": max_runs}],
                     wait=False,
                     emulator=emulator,
                     configuration=config,
                 )
+                assert len(job.ordered_jobs) == 1
+                job_id = job.ordered_jobs[0].id
                 logger.info(
-                    "Remote execution of compiled graph #%s starting, batched with id %s",
+                    "Remote execution of compiled graph #%s starting, job with id %s",
                     compiled.graph.id,
-                    batch.id,
+                    job_id,
                 )
-                self._batch_ids.append(batch.id)
+                self._job_ids.append(job_id)
             logger.info(
                 "All %s jobs enqueued for remote execution, with ids %s",
-                len(self._batch_ids),
-                self._batch_ids,
+                len(self._job_ids),
+                self._job_ids,
             )
-        assert len(self._batch_ids) == len(self.sequences)
+        assert len(self._job_ids) == len(self.sequences)
 
         return PasqalCloudExtracted(
             compiled=self.sequences,
-            batch_ids=self._batch_ids,
+            job_ids=self._job_ids,
             sdk=self._sdk,
             path=self.path,
             state_extractor=state_extractor,
@@ -876,7 +876,7 @@ class RemoteQPUExtractor(BaseRemoteExtractor[GraphType]):
         device_name: The name of the device to use. As of this writing,
             the default value of "FRESNEL" represents the latest QPU
             available through the Pasqal Cloud API.
-        batch_id: Use this to resume a workflow e.g. after turning off
+        job_id: Use this to resume a workflow e.g. after turning off
             your computer while the QPU was executing your sequences.
     """
 
@@ -887,7 +887,7 @@ class RemoteQPUExtractor(BaseRemoteExtractor[GraphType]):
         username: str,
         device_name: str = "FRESNEL",
         password: str | None = None,
-        batch_ids: list[str] | None = None,
+        job_ids: list[str] | None = None,
         path: Path | None = None,
     ):
         super().__init__(
@@ -896,7 +896,7 @@ class RemoteQPUExtractor(BaseRemoteExtractor[GraphType]):
             username=username,
             device_name=device_name,
             password=password,
-            batch_ids=batch_ids,
+            job_ids=job_ids,
             path=path,
         )
 
@@ -927,7 +927,7 @@ class RemoteEmuMPSExtractor(BaseRemoteExtractor[GraphType]):
         device_name: The name of the device to use. As of this writing,
             the default value of "FRESNEL" represents the latest QPU
             available through the Pasqal Cloud API.
-        batch_id: Use this to resume a workflow e.g. after turning off
+        job_id: Use this to resume a workflow e.g. after turning off
             your computer while the QPU was executing your sequences.
     """
 
@@ -938,7 +938,7 @@ class RemoteEmuMPSExtractor(BaseRemoteExtractor[GraphType]):
         username: str,
         device_name: str = "FRESNEL",
         password: str | None = None,
-        batch_ids: list[str] | None = None,
+        job_ids: list[str] | None = None,
         path: Path | None = None,
     ):
         super().__init__(
@@ -947,17 +947,16 @@ class RemoteEmuMPSExtractor(BaseRemoteExtractor[GraphType]):
             username=username,
             device_name=device_name,
             password=password,
-            batch_ids=batch_ids,
+            job_ids=job_ids,
             path=path,
         )
 
     def run(self, dt: int = 10) -> PasqalCloudExtracted:
         def extractor(job: Job, sequence: pl.Sequence) -> dict[str, int] | None:
-            cutoff_duration = int(ceil(sequence.get_duration() / dt) * dt)
             full_result = job.full_result
             if full_result is None:
                 return None
-            result = full_result["bitstring"][cutoff_duration]
+            result = full_result["counter"]
             if result is None:
                 return None
             assert isinstance(result, dict)
