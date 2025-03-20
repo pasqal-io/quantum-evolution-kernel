@@ -16,6 +16,11 @@ nav:
   - Open-source:
     - Licence (MIT-Derived): LICENSE.md
     - Contributor Agreement: CONTRIBUTOR AGREEMENT.md
+  - Contributing:
+    - First contact: contributing/first contact.md
+    - How to contribute: contributing/how to contribute.md
+    - Contributor Agreement: CONTRIBUTOR AGREEMENT.md
+    - Release process: contributing/releasing.md
 
 theme:
   name: material
@@ -54,6 +59,7 @@ markdown_extensions:
 - pymdownx.inlinehilite
 - pymdownx.snippets
 - pymdownx.superfences
+- footnotes
 
 plugins:
 - search
