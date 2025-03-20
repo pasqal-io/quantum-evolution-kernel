@@ -652,8 +652,6 @@ class PasqalCloudExtracted(BaseExtracted):
         # At this point, all jobs are complete.
         self._ingest(completed_jobs)
 
-    # TODO: get job instead of job
-    # TODO: update mock server to simulate progress of the jobs and not the job
     def _ingest(self, jobs: dict[str, Job]) -> None:
         """
         Ingest data received from the remote server.

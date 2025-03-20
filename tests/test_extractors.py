@@ -109,7 +109,8 @@ async def test_async_remote_extractor(extractor: Type[BaseRemoteExtractor]) -> N
 
     ptcfm_compiler = PTCFMCompiler()
 
-    fake_value = "fake-value"
+    # placeholder value to be used in place of credentials for the remote connection
+    placeholder = "placeholder"
 
     all_qpu_results: dict[bool, BaseExtracted] = {}
     for sync in [True, False]:
@@ -118,9 +119,9 @@ async def test_async_remote_extractor(extractor: Type[BaseRemoteExtractor]) -> N
             qpu_extractor = extractor(
                 compiler=ptcfm_compiler,
                 device_name="FRESNEL",
-                project_id=fake_value,
-                username=fake_value,
-                password=fake_value,
+                project_id=placeholder,
+                username=placeholder,
+                password=placeholder,
             )
 
         qpu_extractor.add_graphs(original_ptcfm_data[0:MAX_NUMBER_OF_SAMPLES])
