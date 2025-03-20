@@ -96,7 +96,7 @@ async def test_async_emulators() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("extractor", [RemoteQPUExtractor, RemoteEmuMPSExtractor])
-async def test_async_remote_qpu_extractor(extractor: Type[BaseRemoteExtractor]) -> None:
+async def test_async_remote_extractor(extractor: Type[BaseRemoteExtractor]) -> None:
     """
     Test that the remote extractors can execute without exploding (both sync and async).
     """
@@ -123,7 +123,6 @@ async def test_async_remote_qpu_extractor(extractor: Type[BaseRemoteExtractor]) 
                 password=fake_value,
             )
 
-        breakpoint()
         qpu_extractor.add_graphs(original_ptcfm_data[0:MAX_NUMBER_OF_SAMPLES])
         qpu_compiled = qpu_extractor.compile()
         assert (
@@ -139,6 +138,7 @@ async def test_async_remote_qpu_extractor(extractor: Type[BaseRemoteExtractor]) 
             len(qpu_compiled) > 0
         )  # We know that some (but not all) of these these samples can be executed.
         assert len(qpu_results.raw_data) <= len(qpu_compiled)
+        assert len(qpu_results.raw_data) > 0
 
     assert all_qpu_results[True].targets == all_qpu_results[False].targets
     assert len(all_qpu_results[True].processed_data) == len(all_qpu_results[False].processed_data)
