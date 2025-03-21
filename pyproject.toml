@@ -75,12 +75,12 @@ dependencies = [
 
 [tool.hatch.envs.default.scripts]
 before_tests = "python scripts/before_tests.py"
-test = "pytest -n auto --cov-report=term-missing --cov-config=pyproject.toml --cov=qek --cov=tests --markdown-docs {args}"
+test = "pytest -n auto --cov-report=xml --cov-config=pyproject.toml --cov=qek --cov=tests --markdown-docs {args}"
 test_readme = "pytest --markdown-docs README.md docs/"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = """-vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=qek --cov=tests --markdown-docs"""
+addopts = """-vvv --cov-report=xml --cov-config=pyproject.toml --cov=qek --cov=tests --markdown-docs"""
 xfail_strict = true
 filterwarnings = [
   "ignore:Call to deprecated create function FieldDescriptor",
