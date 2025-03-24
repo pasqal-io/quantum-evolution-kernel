@@ -131,7 +131,7 @@ class MockSDK:
         """Retrieve jobs based on filters, simulating the SDK's get_jobs call."""
         items: list[Job] = []
 
-        # TODO: support other cases
+        # TODO: support cases where the filters is not a list of IDS
         assert isinstance(filters.id, list)
         for id in filters.id:
             items.append(self.mock_server.get_job(id))
