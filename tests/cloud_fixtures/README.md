@@ -1,4 +1,4 @@
-## Fixtures
+# Fixtures
 
 This folder contains some fixtures data that can be used to mock the cloud responses for tests.
 

@@ -84,7 +84,7 @@ class MockSDK:
 
     def get_device_specs_dict(self) -> Any:
         """Retrieve the device specifications from a local JSON file."""
-        with open("tests/fixtures/device_specs.json", "r") as f:
+        with open("tests/cloud_fixtures/device_specs.json", "r") as f:
             return json.load(f)
 
     def create_batch(
