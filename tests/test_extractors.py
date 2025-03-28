@@ -1,11 +1,23 @@
 from typing import cast
 
+
 import os
 import pytest
 import torch_geometric.data as pyg_data
 import torch_geometric.datasets as pyg_dataset
-from qek.data.extractors import QutipExtractor, BaseExtracted
+from qek.data.extractors import (
+    QutipExtractor,
+    BaseExtracted,
+    BaseRemoteExtractor,
+    RemoteQPUExtractor,
+    RemoteEmuMPSExtractor,
+)
 from qek.shared.retrier import PygRetrier
+from unittest.mock import patch
+from typing import Type
+
+from tests.mock_cloud_sdk import MockSDK
+
 
 if os.name == "posix":
     # As of this writing, emu-mps only works under Unix.
@@ -80,3 +92,54 @@ async def test_async_emulators() -> None:
         assert len(all_emu_mps_results[True].processed_data) == len(
             all_emu_mps_results[False].processed_data
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extractor", [RemoteQPUExtractor, RemoteEmuMPSExtractor])
+async def test_async_remote_extractor(extractor: Type[BaseRemoteExtractor]) -> None:
+    """
+    Test that the remote extractors can execute without exploding (both sync and async).
+    """
+    # Load dataset
+    original_ptcfm_data = [
+        cast(pyg_data.Data, d)
+        for d in PygRetrier().insist(pyg_dataset.TUDataset, root="dataset", name="PTC_FM")
+    ]
+    MAX_NUMBER_OF_SAMPLES = 5
+
+    ptcfm_compiler = PTCFMCompiler()
+
+    # placeholder value to be used in place of credentials for the remote connection
+    placeholder = "placeholder"
+
+    all_qpu_results: dict[bool, BaseExtracted] = {}
+    for sync in [True, False]:
+        # Test QutipExtractor
+        with patch("qek.data.extractors.SDK", return_value=MockSDK()):
+            qpu_extractor = extractor(
+                compiler=ptcfm_compiler,
+                device_name="FRESNEL",
+                project_id=placeholder,
+                username=placeholder,
+                password=placeholder,
+            )
+
+        qpu_extractor.add_graphs(original_ptcfm_data[0:MAX_NUMBER_OF_SAMPLES])
+        qpu_compiled = qpu_extractor.compile()
+        assert (
+            len(qpu_compiled) > 0
+        )  # We know that some (but not all) of these samples can be compiled.
+        assert len(qpu_compiled) <= MAX_NUMBER_OF_SAMPLES
+
+        qpu_results = qpu_extractor.run()
+        all_qpu_results[sync] = qpu_results
+        if not sync:
+            await qpu_results
+        assert (
+            len(qpu_compiled) > 0
+        )  # We know that some (but not all) of these these samples can be executed.
+        assert len(qpu_results.raw_data) <= len(qpu_compiled)
+        assert len(qpu_results.raw_data) > 0
+
+    assert all_qpu_results[True].targets == all_qpu_results[False].targets
+    assert len(all_qpu_results[True].processed_data) == len(all_qpu_results[False].processed_data)
