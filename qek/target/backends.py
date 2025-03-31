@@ -218,8 +218,7 @@ class RemoteEmuMPSBackend(BaseRemoteBackend):
         bag = cast(dict[str, dict[int, Counter[str]]], job.result)
 
         assert self._sequence is not None
-        cutoff_duration = int(ceil(self._sequence.get_duration() / dt) * dt)
-        return bag["bitstring"][cutoff_duration]
+        return bag["counter"]
 
 
 if os.name == "posix":
