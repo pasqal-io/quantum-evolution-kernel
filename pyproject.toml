@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "quantum-evolution-kernel"
 description = "A Python library designed for the machine learning community to help users design quantum-driven similarity metrics for graphs and to use them inside kernel-based machine learning algorithms for graph data.ide the right environment to explore new ideas - both in terms of methodologies and data domain - while always interacting with a simple and intuitive QPU interface."
 readme = "README.md"
-version = "0.3.1"
+version = "0.3.2"
 requires-python = ">=3.10,<3.13"
 license = { text = "MIT-derived" }
 keywords = ["quantum"]
