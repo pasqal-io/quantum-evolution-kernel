@@ -83,6 +83,15 @@ class BaseGraph:
             `False` otherwise.
         """
 
+        if self.pyg.num_nodes == 0 or self.pyg.num_nodes is None:
+            logger.debug("graph %s doesn't have any nodes, it's not a disk graph", self.id, self.id)
+            return False
+
+        # Check if the graph is connected.
+        if len(self.nx_graph) == 0 or not nx.is_connected(self.nx_graph):
+            logger.debug("graph %s is not connected, it's not a disk graph", self.id)
+            return False
+
         # Check the distances between all pairs of nodes.
         pos = self.pyg.pos
         assert pos is not None
@@ -91,6 +100,11 @@ class BaseGraph:
             np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
             for u, v in nx.non_edges(self.nx_graph)
         ]
+
+        # Fully connected graphs are always unit disk graphs
+        if len(non_connected_distances_um) == 0:
+            return True
+
         connected_distances_um = [
             np.linalg.norm(np.array(pos[u]) - np.array(pos[v])) for u, v in self.nx_graph.edges()
         ]
