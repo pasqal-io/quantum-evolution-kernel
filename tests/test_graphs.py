@@ -50,8 +50,7 @@ def test_graph_init() -> None:
 
 
 def test_is_unit_disk_graph_false() -> None:
-    """Testing is_unit_disk_graph: these graphs are *not* unit disk graphs
-    """
+    """Testing is_unit_disk_graph: these graphs are *not* unit disk graphs"""
 
     # The empty graph is not a disk graph.
     graph_empty = BaseGraph(
@@ -117,6 +116,7 @@ def test_is_unit_disk_graph_false() -> None:
     )
     assert not graph_non_udg.is_unit_disk_graph()
 
+
 def test_is_unit_disk_graph_true() -> None:
     """
     Testing is_disk_graph: these graphs are unit disk graphs
@@ -167,6 +167,7 @@ def test_is_unit_disk_graph_true() -> None:
         device=pulser.AnalogDevice,
     )
     assert graph_connected_close.is_unit_disk_graph()
+
 
 def test_is_disk_graph_false() -> None:
     """
@@ -388,3 +389,15 @@ def test_basic_compile() -> None:
     assert isinstance(sample, Data)
     ingested = molecule_graph_compiler.ingest(graph=sample, device=pulser.AnalogDevice, id=9)
     assert ingested.id == 9
+
+
+def test_NXGraphCompiler_ingest_from_networkx() -> None:
+    """Testing the NXGraphCompiler ingest starting from a networkx graph"""
+
+    nx_graph = nx.Graph()
+    nx_graph.add_edges_from([(1, 2), (2, 3)])
+    nx.set_node_attributes(nx_graph, {1: [0, 0], 2: [5.02, 0], 3: [11.02, 0]}, "pos")
+    nx_with_pos = NXWithPos(nx_graph, positions=nx.get_node_attributes(nx_graph, "pos"), target=0)
+    compiler = NXGraphCompiler()
+    graph = compiler.ingest(nx_with_pos, device=pulser.AnalogDevice, id=0)
+    assert graph.is_unit_disk_graph()

@@ -67,7 +67,7 @@ class BaseGraph:
         # The graph in networkx format, undirected.
         self.nx_graph: nx.Graph = pyg_utils.to_networkx(
             data=data,
-            node_attrs=["x"],
+            node_attrs=["x"] if data.x is not None else None,
             edge_attrs=["edge_attr"] if data.edge_attr is not None else None,
             to_undirected=True,
         )
