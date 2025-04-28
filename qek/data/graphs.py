@@ -74,6 +74,32 @@ class BaseGraph:
         self.target = target
         self.id = id
 
+    def is_unit_disk_graph(self) -> bool:
+        """
+        Check if `self` is a unit disk graph.
+
+        Returns:
+            `True` if the graph is a unit disk graph.
+            `False` otherwise.
+        """
+
+        # Check the distances between all pairs of nodes.
+        pos = self.pyg.pos
+        assert pos is not None
+
+        non_connected_distances_um = [
+            np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
+            for u, v in nx.non_edges(self.nx_graph)
+        ]
+        connected_distances_um = [
+            np.linalg.norm(np.array(pos[u]) - np.array(pos[v])) for u, v in self.nx_graph.edges()
+        ]
+
+        if min(non_connected_distances_um) < max(connected_distances_um):
+            return False
+
+        return True
+
     def is_disk_graph(self, radius: float) -> bool:
         """
         A predicate to check if `self` is a disk graph with the specified
