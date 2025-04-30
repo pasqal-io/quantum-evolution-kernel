@@ -215,8 +215,10 @@ class BaseGraph:
             return False
 
         # Check distance between nodes
-        if not self.is_disk_graph(self.device.min_atom_distance + EPSILON_RADIUS_UM):
-            logger.debug("graph %s is not a disk graph, it's not embeddable", self.id)
+        if not self.is_unit_disk_graph():
+            logger.debug(
+                "graph %s is not a unit disk graph, therefore it's not embeddable", self.id
+            )
             return False
 
         for u, v in self.nx_graph.edges():
