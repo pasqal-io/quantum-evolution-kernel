@@ -49,6 +49,126 @@ def test_graph_init() -> None:
     assert graph.is_disk_graph(pulser.AnalogDevice.min_atom_distance + 0.01)
 
 
+def test_is_unit_disk_graph_false() -> None:
+    """Testing is_unit_disk_graph: these graphs are *not* unit disk graphs"""
+
+    # The empty graph is not a disk graph.
+    graph_empty = BaseGraph(
+        id=0,
+        data=Data(
+            x=torch.tensor([], dtype=torch.float),
+            edge_index=torch.tensor([], dtype=torch.int),
+            pos=torch.tensor([], dtype=torch.float),
+            y=1,
+        ),
+        device=pulser.AnalogDevice,
+    )
+    assert not graph_empty.is_unit_disk_graph()
+
+    # This graph has three nodes, each pair of nodes is closer than
+    # the diameter, but it's not a disk graph because one of the nodes
+    # is not connected.
+    graph_disconnected_close = BaseGraph(
+        id=0,
+        data=Data(
+            x=torch.tensor([[0], [1], [2]], dtype=torch.float),
+            edge_index=torch.tensor(
+                [
+                    [0, 1],  # edge 0 -> 1
+                    [1, 0],  # edge 1 -> 0
+                ],
+                dtype=torch.int,
+            ),
+            pos=torch.tensor([[0], [1], [2]], dtype=torch.float),
+            y=1,
+        ),
+        device=pulser.AnalogDevice,
+    )
+    assert not graph_disconnected_close.is_unit_disk_graph()
+
+    # This graph has three nodes, two nodes are connected, but it's
+    # not a disk graph because the non connected node distance is shorter than the connected edges
+    graph_non_udg = BaseGraph(
+        id=0,
+        data=Data(
+            x=torch.tensor([[0], [1], [2]], dtype=torch.float),
+            edge_index=torch.tensor(
+                [
+                    [
+                        0,
+                        1,  # edge 0 -> 1
+                        1,
+                        2,  # edge 1 -> 2
+                    ],
+                    [
+                        1,
+                        0,  # edge 1 -> 0
+                        2,
+                        1,  # edge 2 -> 1
+                    ],
+                ],
+                dtype=torch.int,
+            ),
+            pos=torch.tensor([[0, 0], [0, 1], [0.1, 0]], dtype=torch.float),
+            y=1,
+        ),
+        device=pulser.AnalogDevice,
+    )
+    assert not graph_non_udg.is_unit_disk_graph()
+
+
+def test_is_unit_disk_graph_true() -> None:
+    """
+    Testing is_disk_graph: these graphs are unit disk graphs
+    """
+    # Single node graph is always a unit disk graph.
+    graph_single_node = BaseGraph(
+        id=0,
+        data=Data(
+            x=torch.tensor([0], dtype=torch.float),
+            edge_index=torch.tensor([]),
+            pos=torch.tensor([], dtype=torch.float),
+            y=1,
+        ),
+        device=pulser.AnalogDevice,
+    )
+    assert graph_single_node.is_unit_disk_graph()
+
+    # A complete graph with three nodes, each of the edges
+    # is shorter than the disk's diameter.
+    graph_connected_close = BaseGraph(
+        id=0,
+        data=Data(
+            x=torch.tensor([[0], [1], [2]], dtype=torch.float),
+            edge_index=torch.tensor(
+                [
+                    [
+                        0,
+                        1,  # edge 0 -> 1
+                        1,
+                        2,  # edge 1 -> 2
+                        0,
+                        2,  # edge 0 -> 2
+                    ],
+                    [
+                        1,
+                        0,  # edge 1 -> 0
+                        2,
+                        1,  # edge 2 -> 1
+                        2,
+                        0,  # edge 2 -> 0
+                    ],
+                ],
+                dtype=torch.int,
+            ),
+            pos=torch.tensor([[0], [1], [2]], dtype=torch.float),
+            y=1,
+        ),
+        device=pulser.AnalogDevice,
+    )
+    assert graph_connected_close.is_unit_disk_graph()
+
+
 def test_is_disk_graph_false() -> None:
     """
     Testing is_disk_graph: these graphs are *not* disk graphs
@@ -269,3 +389,15 @@ def test_basic_compile() -> None:
     assert isinstance(sample, Data)
     ingested = molecule_graph_compiler.ingest(graph=sample, device=pulser.AnalogDevice, id=9)
     assert ingested.id == 9
+
+
+def test_NXGraphCompiler_ingest_from_networkx() -> None:
+    """Testing the NXGraphCompiler ingest starting from a networkx graph"""
+
+    nx_graph = nx.Graph()
+    nx_graph.add_edges_from([(1, 2), (2, 3)])
+    nx.set_node_attributes(nx_graph, {1: [0, 0], 2: [5.02, 0], 3: [11.02, 0]}, "pos")
+    nx_with_pos = NXWithPos(nx_graph, positions=nx.get_node_attributes(nx_graph, "pos"), target=0)
+    compiler = NXGraphCompiler()
+    graph = compiler.ingest(nx_with_pos, device=pulser.AnalogDevice, id=0)
+    assert graph.is_unit_disk_graph()
