@@ -76,7 +76,7 @@ class BaseGraph:
 
     def is_unit_disk_graph(self) -> bool:
         """
-        Check if `self` is a unit disk graph.
+        A predicate to check if `self` is a unit disk graph.
 
         Returns:
             `True` if the graph is a unit disk graph.
