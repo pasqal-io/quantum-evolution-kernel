@@ -121,7 +121,7 @@ def test_is_unit_disk_graph_true() -> None:
     """
     Testing is_disk_graph: these graphs are unit disk graphs
     """
-    # Single node
+    # Single node graph is always a unit disk graph.
     graph_single_node = BaseGraph(
         id=0,
         data=Data(
