@@ -1,0 +1,28 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Quantum Evolution Kernel
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: David
+    family-names: Teller
+    email: david.teller@pasqal.com
+    affiliation: Pasqal
+  - given-names: Roland
+    family-names: Guichard
+    email: roland.guichard@pasqal.com
+    affiliation: Pasqal
+  - given-names: Manu
+    family-names: Lahariya
+    email: manu.lahariya@pasqal.com
+    affiliation: Pasqal
+repository-code: 'https://github.com/pasqal-io/quantum-evolution-kernel'
+abstract: A Graph Machine Learning library using Quantum Computing
+keywords:
+  - quantum
+  - graph machine learning
+version: 0.3.2
