@@ -67,12 +67,52 @@ class BaseGraph:
         # The graph in networkx format, undirected.
         self.nx_graph: nx.Graph = pyg_utils.to_networkx(
             data=data,
-            node_attrs=["x"],
+            node_attrs=["x"] if data.x is not None else None,
             edge_attrs=["edge_attr"] if data.edge_attr is not None else None,
             to_undirected=True,
         )
         self.target = target
         self.id = id
+
+    def is_unit_disk_graph(self) -> bool:
+        """
+        A predicate to check if `self` is a unit disk graph.
+
+        Returns:
+            `True` if the graph is a unit disk graph.
+            `False` otherwise.
+        """
+
+        if self.pyg.num_nodes == 0 or self.pyg.num_nodes is None:
+            logger.debug("graph %s doesn't have any nodes, it's not a disk graph", self.id, self.id)
+            return False
+
+        # Check if the graph is connected.
+        if len(self.nx_graph) == 0 or not nx.is_connected(self.nx_graph):
+            logger.debug("graph %s is not connected, it's not a disk graph", self.id)
+            return False
+
+        # Check the distances between all pairs of nodes.
+        pos = self.pyg.pos
+        assert pos is not None
+
+        non_connected_distances_um = [
+            np.linalg.norm(np.array(pos[u]) - np.array(pos[v]))
+            for u, v in nx.non_edges(self.nx_graph)
+        ]
+
+        # Fully connected graphs are always unit disk graphs
+        if len(non_connected_distances_um) == 0:
+            return True
+
+        connected_distances_um = [
+            np.linalg.norm(np.array(pos[u]) - np.array(pos[v])) for u, v in self.nx_graph.edges()
+        ]
+
+        if min(non_connected_distances_um) < max(connected_distances_um):
+            return False
+
+        return True
 
     def is_disk_graph(self, radius: float) -> bool:
         """
@@ -175,8 +215,10 @@ class BaseGraph:
             return False
 
         # Check distance between nodes
-        if not self.is_disk_graph(self.device.min_atom_distance + EPSILON_RADIUS_UM):
-            logger.debug("graph %s is not a disk graph, it's not embeddable", self.id)
+        if not self.is_unit_disk_graph():
+            logger.debug(
+                "graph %s is not a unit disk graph, therefore it's not embeddable", self.id
+            )
             return False
 
         for u, v in self.nx_graph.edges():
