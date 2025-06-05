@@ -9,7 +9,6 @@ from dataclasses import dataclass
 import itertools
 import json
 import logging
-from math import ceil
 from uuid import UUID
 import time
 from typing import Any, Callable, Generator, Generic, Sequence, TypeVar, cast
@@ -498,7 +497,6 @@ if os.name == "posix":
                 logger.warning("No sequences to run, did you forget to call compile()?")
                 return SyncExtracted(raw_data=[], targets=[], sequences=[], states=[])
 
-            backend = emu_mps.MPSBackend()
             raw_data = []
             targets: list[int] = []
             sequences = []
@@ -516,12 +514,12 @@ if os.name == "posix":
                 logger.debug("Executing compiled graph # %s", id)
 
                 # Configure observable.
-                cutoff_duration = int(ceil(compiled.sequence.get_duration() / dt) * dt)
-                observable = emu_mps.BitStrings(evaluation_times={cutoff_duration})
+                observable = emu_mps.BitStrings(evaluation_times=[1.0])
                 config = emu_mps.MPSConfig(observables=[observable], dt=dt)
-                counter: dict[str, Any] = backend.run(compiled.sequence, config)[observable.name][
-                    cutoff_duration
-                ]
+
+                # And run.
+                backend = emu_mps.MPSBackend(sequence=compiled.sequence, config=config)
+                counter: dict[str, Any] = backend.run().get_result(observable=observable, time=1.0)
                 logger.debug("Execution of compiled graph # %s complete", id)
                 raw_data.append(compiled.graph)
                 if compiled.graph.target is not None:
