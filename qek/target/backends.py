@@ -4,7 +4,6 @@ Low-level tools to execute compiled registers and pulses onto Quantum Devices, i
 
 import abc
 import asyncio
-from math import ceil
 from typing import Counter, cast
 
 import os
@@ -244,11 +243,10 @@ if os.name == "posix":
             self, register: targets.Register, pulse: targets.Pulse, dt: int = 10
         ) -> Counter[str]:
             sequence = self._make_sequence(register=register, pulse=pulse)
-            backend = emu_mps.MPSBackend()
 
             # Configure observable.
-            cutoff_duration = int(ceil(sequence.get_duration() / dt) * dt)
-            observable = emu_mps.BitStrings(evaluation_times={cutoff_duration})
+            observable = emu_mps.BitStrings(evaluation_times=[1.0])
             config = emu_mps.MPSConfig(observables=[observable], dt=dt)
-            counter: Counter[str] = backend.run(sequence, config)[observable.name][cutoff_duration]
+            backend = emu_mps.MPSBackend(sequence=sequence, config=config)
+            counter: Counter[str] = backend.run().get_result(observable=observable, time=1.0)
             return counter
