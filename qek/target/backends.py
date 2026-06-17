@@ -7,12 +7,12 @@ import asyncio
 from typing import Counter, cast
 
 import os
-from emu_base import BackendConfig
-from pasqal_cloud.device import DeviceTypeName
 from pulser import Sequence
 from pulser.devices import Device
+from pulser.backend import QPUBackend
 from pulser.backend.remote import RemoteConnection, BatchStatus, RemoteResults, RemoteBackend
 from pulser_pasqal import PasqalCloud
+from pulser_pasqal.backends import EmuMPSBackend as RemoteMPSBackend
 from pulser_simulation import QutipEmulator
 
 from qek.data.extractors import deserialize_device
@@ -148,8 +148,7 @@ class BaseRemoteBackend(BaseBackend):
         self,
         register: targets.Register,
         pulse: targets.Pulse,
-        device_type_name: DeviceTypeName | None,
-        config: BackendConfig | None = None,
+        backend_class: RemoteBackend | None,
         sleep_sec: int = 2,
     ) -> RemoteResults:
         """
@@ -158,8 +157,7 @@ class BaseRemoteBackend(BaseBackend):
         Arguments:
             register: A register to run.
             pulse: A pulse to execute.
-            device_type_name: The emulator to use, or None to run on a QPU.
-            config: The backend-specific config.
+            backend_class: The backend to use
             sleep_sec (optional): The amount of time to sleep when waiting for the remote server to respond, in seconds. Defaults to 2.
 
         Raises:
@@ -173,19 +171,7 @@ class BaseRemoteBackend(BaseBackend):
         except ValueError as e:
             raise CompilationError(f"This register/pulse cannot be executed on the device: {e}")
 
-        # Enqueue execution.
-        class CloudBackend(RemoteBackend):
-            def __init__(self, device_type_name, *args, **kwargs):
-                self._device_type_name = device_type_name
-                super(*args, **kwargs)
-
-            def _submit_kwargs(self) -> dict[str, Any]:
-                """Keyword arguments given to any call to RemoteConnection.submit()."""
-                return dict(batch_id=self._batch_id, device_type=self.device_type_name)
-
-
-        backend = CloudBackend(device_type_name, sequence, self._connection, config=config)
-        remote_results = backend.run(
+        remote_results = backend_class(sequence, self._connection).run(
             jobs_params=[{"runs": self._max_runs}],
             wait=False,
         )
@@ -210,19 +196,17 @@ class RemoteQPUBackend(BaseRemoteBackend):
         with a computation that has been previously started.
     """
     async def run(self, register: targets.Register, pulse: targets.Pulse) -> Counter[str]:
-        remote_results = await self._run(register, pulse, device_type_name=None, config=None)
+        remote_results = await self._run(register, pulse, backend_class=QPUBackend)
         return remote_results.results.final_bitstrings
 
 
 class RemoteEmuMPSBackend(BaseRemoteBackend):
     """
     A backend that uses a remote high-performance emulator (EmuMPS)
-    published on Pasqal Cloud.
+    published on Pasqal Cloud or third party connection.
     """
     async def run(self, register: targets.Register, pulse: targets.Pulse) -> Counter[str]:
-        observable = emu_mps.BitStrings(evaluation_times=[1.0])
-        config = emu_mps.MPSConfig(observables=[observable], dt=10)
-        remote_results = await self._run(register, pulse, device_type_name=DeviceTypeName.EMU_MPS, config=config)
+        remote_results = await self._run(register, pulse, backend_class=RemoteMPSBackend)
         return remote_results.results.final_bitstrings
 
 
