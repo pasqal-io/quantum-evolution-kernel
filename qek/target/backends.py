@@ -7,11 +7,12 @@ import asyncio
 from typing import Counter, cast
 
 import os
-from pasqal_cloud import SDK
-from pasqal_cloud.device import BaseConfig, EmulatorType
-from pasqal_cloud.job import Job
+from emu_base import BackendConfig
+from pasqal_cloud.device import DeviceTypeName
 from pulser import Sequence
 from pulser.devices import Device
+from pulser.backend.remote import RemoteConnection, BatchStatus, RemoteResults, RemoteBackend
+from pulser_pasqal import PasqalCloud
 from pulser_simulation import QutipEmulator
 
 from qek.data.extractors import deserialize_device
@@ -95,10 +96,11 @@ class BaseRemoteBackend(BaseBackend):
 
     def __init__(
         self,
-        project_id: str,
-        username: str,
+        project_id: str = None,
+        username: str = None,
         device_name: str = "FRESNEL",
         password: str | None = None,
+        connection: RemoteConnection = None,
     ):
         """
         Create a remote backend
@@ -112,8 +114,13 @@ class BaseRemoteBackend(BaseBackend):
                 the default value of "FRESNEL" represents the latest QPU
                 available through the Pasqal Cloud API.
         """
+        # validate None stuff
+        if connection is not None:
+            self._connection = connection
+        else:
+            assert project_id is not None and username is not None
+            self._connection = PasqalCloud(username=username, project_id=project_id, password=password)
         self.device_name = device_name
-        self._sdk = SDK(username=username, project_id=project_id, password=password)
         self._max_runs = 500
         self._sequence = None
         self._device = None
@@ -127,7 +134,7 @@ class BaseRemoteBackend(BaseBackend):
 
         # Fetch the latest list of QPUs
         # Implementation note: Currently sync, hopefully async in the future.
-        specs = self._sdk.get_device_specs_dict()
+        specs = self._connection.fetch_available_devices()
         self._device = cast(Device, deserialize_device(specs[self.device_name]))
 
         # As of this writing, the API doesn't support runs longer than 500 jobs.
@@ -141,17 +148,17 @@ class BaseRemoteBackend(BaseBackend):
         self,
         register: targets.Register,
         pulse: targets.Pulse,
-        emulator: EmulatorType | None,
-        config: BaseConfig | None = None,
+        device_type_name: DeviceTypeName | None,
+        config: BackendConfig | None = None,
         sleep_sec: int = 2,
-    ) -> Job:
+    ) -> RemoteResults:
         """
         Run the pulse + register.
 
         Arguments:
             register: A register to run.
             pulse: A pulse to execute.
-            emulator: The emulator to use, or None to run on a QPU.
+            device_type_name: The emulator to use, or None to run on a QPU.
             config: The backend-specific config.
             sleep_sec (optional): The amount of time to sleep when waiting for the remote server to respond, in seconds. Defaults to 2.
 
@@ -167,26 +174,30 @@ class BaseRemoteBackend(BaseBackend):
             raise CompilationError(f"This register/pulse cannot be executed on the device: {e}")
 
         # Enqueue execution.
-        batch = self._sdk.create_batch(
-            serialized_sequence=sequence.to_abstract_repr(),
-            jobs=[{"runs": self._max_runs}],
+        class CloudBackend(RemoteBackend):
+            def __init__(self, device_type_name, *args, **kwargs):
+                self._device_type_name = device_type_name
+                super(*args, **kwargs)
+
+            def _submit_kwargs(self) -> dict[str, Any]:
+                """Keyword arguments given to any call to RemoteConnection.submit()."""
+                return dict(batch_id=self._batch_id, device_type=self.device_type_name)
+
+
+        backend = CloudBackend(device_type_name, sequence, self._connection, config=config)
+        remote_results = backend.run(
+            jobs_params=[{"runs": self._max_runs}],
             wait=False,
-            emulator=emulator,
-            configuration=config,
         )
 
         # Wait for execution to complete.
         while True:
             await asyncio.sleep(sleep_sec)
             # Currently sync, hopefully async in the future.
-            batch.refresh()
-            if batch.status in {"PENDING", "RUNNING"}:
+            if remote_results.get_batch_status() in {BatchStatus.PENDING, BatchStatus.RUNNING}:
                 # Continue waiting.
                 continue
-            job = next(iter(batch.jobs.values()))
-            if job.status == "ERROR":
-                raise Exception(f"Error while executing remote job: {job.errors}")
-            return job
+            return remote_results.results.final_bitstrings
 
 
 class RemoteQPUBackend(BaseRemoteBackend):
@@ -198,10 +209,9 @@ class RemoteQPUBackend(BaseRemoteBackend):
         may be very long. You may use this Extractor to resume your workflow
         with a computation that has been previously started.
     """
-
     async def run(self, register: targets.Register, pulse: targets.Pulse) -> Counter[str]:
-        job = await self._run(register, pulse, emulator=None, config=None)
-        return cast(Counter[str], job.result)
+        remote_results = await self._run(register, pulse, device_type_name=None, config=None)
+        return remote_results.results.final_bitstrings
 
 
 class RemoteEmuMPSBackend(BaseRemoteBackend):
@@ -209,15 +219,11 @@ class RemoteEmuMPSBackend(BaseRemoteBackend):
     A backend that uses a remote high-performance emulator (EmuMPS)
     published on Pasqal Cloud.
     """
-
-    async def run(
-        self, register: targets.Register, pulse: targets.Pulse, dt: int = 10
-    ) -> Counter[str]:
-        job = await self._run(register, pulse, emulator=EmulatorType.EMU_MPS, config=None)
-        bag = cast(dict[str, dict[int, Counter[str]]], job.result)
-
-        assert self._sequence is not None
-        return bag["counter"]
+    async def run(self, register: targets.Register, pulse: targets.Pulse) -> Counter[str]:
+        observable = emu_mps.BitStrings(evaluation_times=[1.0])
+        config = emu_mps.MPSConfig(observables=[observable], dt=10)
+        remote_results = await self._run(register, pulse, device_type_name=DeviceTypeName.EMU_MPS, config=config)
+        return remote_results.results.final_bitstrings
 
 
 if os.name == "posix":
