@@ -4,13 +4,13 @@ Low-level tools to execute compiled registers and pulses onto Quantum Devices, i
 
 import abc
 import asyncio
-from typing import Counter, cast
+from typing import Counter, cast, Type
 
 import os
 from pulser import Sequence
 from pulser.devices import Device
 from pulser.backend import QPUBackend
-from pulser.backend.remote import RemoteConnection, BatchStatus, RemoteResults, RemoteBackend
+from pulser.backend.remote import RemoteConnection, BatchStatus, RemoteBackend
 from pulser_pasqal import PasqalCloud
 from pulser_pasqal.backends import EmuMPSBackend as RemoteMPSBackend
 from pulser_simulation import QutipEmulator
@@ -148,9 +148,9 @@ class BaseRemoteBackend(BaseBackend):
         self,
         register: targets.Register,
         pulse: targets.Pulse,
-        backend_class: RemoteBackend | None,
+        backend_class: Type[RemoteBackend] | None,
         sleep_sec: int = 2,
-    ) -> RemoteResults:
+    ) -> Counter[str]:
         """
         Run the pulse + register.
 
@@ -196,9 +196,7 @@ class RemoteQPUBackend(BaseRemoteBackend):
         with a computation that has been previously started.
     """
     async def run(self, register: targets.Register, pulse: targets.Pulse) -> Counter[str]:
-        remote_results = await self._run(register, pulse, backend_class=QPUBackend)
-        return remote_results.results.final_bitstrings
-
+        return await self._run(register, pulse, backend_class=QPUBackend)
 
 class RemoteEmuMPSBackend(BaseRemoteBackend):
     """
@@ -206,8 +204,7 @@ class RemoteEmuMPSBackend(BaseRemoteBackend):
     published on Pasqal Cloud or third party connection.
     """
     async def run(self, register: targets.Register, pulse: targets.Pulse) -> Counter[str]:
-        remote_results = await self._run(register, pulse, backend_class=RemoteMPSBackend)
-        return remote_results.results.final_bitstrings
+        return self._run(register, pulse, backend_class=RemoteMPSBackend)
 
 
 if os.name == "posix":
