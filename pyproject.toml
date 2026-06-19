@@ -31,13 +31,13 @@ classifiers = [
 dependencies = [
   "networkx",
   "numpy",
-  "pulser~=1.5",
+  "pulser~=1.8",
   "rdkit",
   "scikit-learn",
   "torch",
   "torch_geometric",
   "matplotlib",
-  "emu-mps~=2.2.0",
+  "emu-mps~=2.7",
   "pasqal-cloud",
 ]
 
