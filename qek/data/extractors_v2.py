@@ -1,20 +1,22 @@
 """
 High-Level API to compile raw data (graphs) and process it on a quantum device, either a local emulator,
-a remote emulator or a physical QPI.
+a remote emulator or a physical QPU.
+
+Unlike `qek.data.extractors`, this module only speaks Pulser: any `pulser.backend.remote.RemoteConnection`
+(e.g. `pulser_pasqal.PasqalCloud`) and any `RemoteBackend` will do, so nothing here depends on the
+pasqal-cloud SDK.
 """
 
 import abc
 import asyncio
 import logging
 import time
-from typing import Any, Generator, Generic, cast, Type
-from pulser.backend import QPUBackend, Results
+from typing import Any, Generator, Generic, Type
+from pulser.backend import QPUBackend
 from pulser.backend.remote import RemoteConnection, BatchStatus, RemoteBackend, RemoteResults
-from pulser_pasqal.backends import EmuMPSBackend as RemoteMPSBackend
 from pathlib import Path
 import pulser as pl
 from pulser.devices import Device
-from pulser.json.abstract_repr.deserializer import deserialize_device
 
 from qek.data.extractors import BaseExtracted, Compiled, SyncExtracted, GraphType, BaseExtractor
 from qek.data.graphs import BaseGraph, BaseGraphCompiler
@@ -25,10 +27,13 @@ logger = logging.getLogger(__name__)
 # How many seconds to sleep while waiting for the results from the cloud.
 SLEEP_DELAY_S = 2
 
+# Batch statuses that mean "come back later".
+_PENDING_STATUSES = {BatchStatus.PENDING, BatchStatus.RUNNING}
+
 
 class RemoteExtracted(BaseExtracted):
     """
-    Data extracted from remote API, i.e. we need wait for a remote server.
+    Data extracted from a remote connection, i.e. we need to wait for a remote server.
 
     Performance note:
         If your code is meant to be executed as part of an interactive application or
@@ -51,7 +56,9 @@ class RemoteExtracted(BaseExtracted):
 
         Arguments:
             compiled: The result of compiling a set of graphs.
-            job_ids: The ids of the jobs on the cloud API, in the same order as `compiled`.
+            batch_ids: The ids of the batches on the remote connection, in the same
+                order as `compiled`, one batch per compiled graph.
+            connection: The connection on which the batches were submitted.
             path: If provided, a path at which to save the results once they're available.
         """
         self._compiled = compiled
@@ -60,31 +67,38 @@ class RemoteExtracted(BaseExtracted):
         self._path = path
         self._connection = connection
 
+    def _poll(self) -> Generator[None, None, None]:
+        """
+        Poll the remote connection until all batches are complete, ingesting the results.
+
+        Yields once per round, leaving it to the caller to wait between rounds (blocking
+        or not). Yields nothing at all if the results are already available.
+        """
+        if self._results is not None:
+            # Results are already available.
+            return
+        pending = {
+            bid: RemoteResults(batch_id=bid, connection=self._connection) for bid in self._batch_ids
+        }
+        completed: dict[str, RemoteResults] = {}
+        while len(pending) > 0:
+            yield
+            for bid, remote_results in list(pending.items()):
+                if remote_results.get_batch_status() not in _PENDING_STATUSES:
+                    logger.debug("Batch %s is now complete", bid)
+                    completed[bid] = pending.pop(bid)
+
+        # At this point, all batches are complete.
+        self._ingest(completed)
+
     def _wait(self) -> None:
         """
         Wait synchronously until remote execution is ready.
 
         This WILL BLOCK your main thread, possibly for a very long time.
         """
-        if self._results is not None:
-            # Results are already available.
-            return
-        pending_batch_ids: set[str] = set(self._batch_ids)
-        all_remote_results = {bid: RemoteResults(batch_id=bid,connection=self._connection) for bid in pending_batch_ids} 
-        completed_batchs: dict[str, Results] = {}
-        while len(pending_batch_ids) > 0:
+        for _ in self._poll():
             time.sleep(SLEEP_DELAY_S)
-            # Update their status.
-            for bid in pending_batch_ids:
-                remote_results = all_remote_results[bid]
-                batch_status = remote_results.get_batch_status()
-                if batch_status not in {BatchStatus.PENDING, BatchStatus.RUNNING}:
-                    logger.debug("Batch %s is now complete", bid)
-                    pending_batch_ids.discard(bid)
-                    completed_batchs[bid] = remote_results
-
-        # At this point, all jobs are complete.
-        self._ingest(completed_batchs)
 
     def __await__(self) -> Generator[Any, Any, None]:
         """
@@ -96,66 +110,51 @@ class RemoteExtracted(BaseExtracted):
         Example:
             await extracted
         """
-        if self._results is not None:
-            # Results are already available.
-            return
-        pending_batch_ids: set[str] = set(self._batch_ids)
-        all_remote_results = {bid: RemoteResults(batch_id=bid,connection=self._connection) for bid in pending_batch_ids} 
-        completed_batchs: dict[str, Results] = {}
-        while len(pending_batch_ids) > 0:
+        for _ in self._poll():
             yield from asyncio.sleep(SLEEP_DELAY_S).__await__()
-            # Update their status.
-            for bid in pending_batch_ids:
-                remote_results = all_remote_results[bid]
-                batch_status = remote_results.get_batch_status()
-                if batch_status not in {BatchStatus.PENDING, BatchStatus.RUNNING}:
-                    logger.debug("Batch %s is now complete", bid)
-                    pending_batch_ids.discard(bid)
-                    completed_batchs[bid] = remote_results
 
-        # At this point, all jobs are complete.
-        self._ingest(completed_batchs)
-
-    def _ingest(self, completed_batch: dict[str, RemoteResults]) -> None:
+    def _ingest(self, completed: dict[str, RemoteResults]) -> None:
         """
         Ingest data received from the remote server.
 
         No I/O.
         """
-        assert len(completed_batch) == len(self._batch_ids)
+        assert len(completed) == len(self._batch_ids)
 
         raw_data = []
         targets: list[int] = []
         sequences = []
-        all_bitstrings = []
+        states = []
         for i, id in enumerate(self._batch_ids):
-            batch_results = completed_batch[id]
             compiled = self._compiled[i]
-            results = list(batch_results.get_available_results().values())
-            if len(results) == 1:
-                job_results = results[0]
-                bitstrings = self._state_extractor(job_results.final_bitstrings, compiled.sequence)
-                if bitstrings is None:
-                    logger.warning(
-                        "Job %s (graph %s) did not return a usable state, skipping",
-                        i,
-                        compiled.graph.id,
-                    )
-                    continue
-                raw_data.append(compiled.graph)
-                if compiled.graph.target is not None:
-                    targets.append(compiled.graph.target)
-                sequences.append(compiled.sequence)
-                all_bitstrings.append(bitstrings)
-            else:
+            # We submit exactly one job per compiled graph.
+            results = list(completed[id].get_available_results().values())
+            if len(results) != 1:
                 # If some sequences failed, let's skip them and proceed as well as we can.
                 logger.warning(
-                    "Job %s (graph %s) failed, skipping",
-                    i,
-                    compiled.graph.id
+                    "Batch %s (graph %s) returned %s results instead of 1, skipping",
+                    id,
+                    compiled.graph.id,
+                    len(results),
                 )
+                continue
+            try:
+                bitstrings = results[0].final_bitstrings
+            except RuntimeError as e:
+                logger.warning(
+                    "Batch %s (graph %s) did not return a usable state (%s), skipping",
+                    id,
+                    compiled.graph.id,
+                    e,
+                )
+                continue
+            raw_data.append(compiled.graph)
+            if compiled.graph.target is not None:
+                targets.append(compiled.graph.target)
+            sequences.append(compiled.sequence)
+            states.append(bitstrings)
         self._results = SyncExtracted(
-            raw_data=raw_data, targets=targets, sequences=sequences, states=all_bitstrings
+            raw_data=raw_data, targets=targets, sequences=sequences, states=states
         )
         if self._path is not None:
             self.save_dataset(self._path)
@@ -193,8 +192,8 @@ class RemoteExtracted(BaseExtracted):
 
 class BaseRemoteExtractorV2(BaseExtractor[GraphType], Generic[GraphType]):
     """
-    An Extractor that uses a remote Quantum Device published
-    on Pasqal Cloud, to run sequences compiled from graphs.
+    An Extractor that runs sequences compiled from graphs on a remote Quantum Device,
+    reachable through any Pulser `RemoteConnection`.
 
     Performance note (servers and interactive applications only):
         If your code is meant to be executed as part of an interactive application or
@@ -205,33 +204,33 @@ class BaseRemoteExtractorV2(BaseExtractor[GraphType], Generic[GraphType]):
         may ignore this performance note.
 
     Args:
-        path: Path to store the result of the run, for future uses.
-            To reload the result of a previous run, use `LoadExtractor`.
-        project_id: The ID of the project on the Pasqal Cloud API.
-        username: Your username on the Pasqal Cloud API.
-        password: Your password on the Pasqal Cloud API. If you leave
-            this to None, you will need to enter your password manually.
-        device_name: The name of the device to use. As of this writing,
-            the default value of "FRESNEL" represents the latest QPU
-            available through the Pasqal Cloud API.
+        compiler: A graph compiler, in charge of converting graphs to Pulser Sequences.
+        connection: An open connection to the remote API, e.g. `pulser_pasqal.PasqalCloud`.
+        device: The device to compile for. If unspecified, fetch `device_name` from
+            `connection`.
+        device_name: The name of the device to fetch from `connection`. As of this writing,
+            the default value of "FRESNEL" represents the latest QPU available through
+            the Pasqal Cloud API. Ignored if `device` is specified.
         batch_ids: Use this to resume a workflow e.g. after turning off
             your computer while the QPU was executing your sequences.
-            Warning: A job started with one executor MUST NOT be resumed
-            with a different executor.
+            Warning: A batch started with one extractor MUST NOT be resumed
+            with a different extractor.
+        path: Path to store the result of the run, for future uses.
+            To reload the result of a previous run, use `LoadExtractor`.
     """
 
     def __init__(
         self,
         compiler: BaseGraphCompiler[GraphType],
         connection: RemoteConnection,
-        batch_ids: list[str] | None = None,
+        device: Device | None = None,
         device_name: str = "FRESNEL",
+        batch_ids: list[str] | None = None,
         path: Path | None = None,
     ):
-
-        # Fetch the latest list of QPUs
-        specs = connection.fetch_available_devices()
-        device = cast(Device, deserialize_device(specs[device_name]))
+        if device is None:
+            # Fetch the latest specs of the device.
+            device = connection.fetch_available_devices()[device_name]
 
         super().__init__(device=device, compiler=compiler, path=path)
         self._connection = connection
@@ -253,6 +252,7 @@ class BaseRemoteExtractorV2(BaseExtractor[GraphType], Generic[GraphType]):
     def _run(
         self,
         backend_class: Type[RemoteBackend],
+        **backend_kwargs: Any,
     ) -> RemoteExtracted:
         if len(self.sequences) == 0:
             logger.warning("No sequences to run, did you forget to call compile()?")
@@ -269,23 +269,22 @@ class BaseRemoteExtractorV2(BaseExtractor[GraphType], Generic[GraphType]):
         max_runs = device.max_runs if isinstance(device.max_runs, int) else 500
 
         if self._batch_ids is None:
-            # Enqueue jobs.
+            # Enqueue one batch per compiled graph.
             self._batch_ids = []
             for compiled in self.sequences:
                 logger.debug("Enqueuing execution of compiled graph #%s", compiled.graph.id)
-                remote_results = backend_class(compiled.sequence, self._connection).run(
-                    jobs_params=[{"runs": max_runs}],
-                    wait=False,
-                )
+                remote_results = backend_class(
+                    compiled.sequence, self._connection, **backend_kwargs
+                ).run(job_params=[{"runs": max_runs}], wait=False)
                 batch_id = remote_results.batch_id
                 logger.info(
-                    "Remote execution of compiled graph #%s starting, job with id %s",
+                    "Remote execution of compiled graph #%s starting, batch with id %s",
                     compiled.graph.id,
                     batch_id,
                 )
                 self._batch_ids.append(batch_id)
             logger.info(
-                "All %s jobs enqueued for remote execution, with ids %s",
+                "All %s batches enqueued for remote execution, with ids %s",
                 len(self._batch_ids),
                 self._batch_ids,
             )
@@ -299,15 +298,19 @@ class BaseRemoteExtractorV2(BaseExtractor[GraphType], Generic[GraphType]):
         )
 
 
-class RemoteQPUExtractorV2(BaseRemoteExtractorV2[GraphType]):
+class RemoteExtractorV2(BaseRemoteExtractorV2[GraphType]):
     """
-    An Extractor that uses a remote QPU published
-    on Pasqal Cloud, to run sequences compiled from graphs.
+    An Extractor that runs sequences compiled from graphs on a remote backend.
+
+    By default, it runs on a QPU (`QPUBackend`). To run on a remote emulator instead, pass
+    the corresponding backend class, e.g.:
+
+        RemoteExtractorV2(compiler, connection, backend_class=pulser_pasqal.EmuMPSBackend)
 
     Performance note:
         as of this writing, the waiting lines for a QPU
         may be very long. You may use this Extractor to resume your workflow
-        with a computation that has been previously started.
+        with a computation that has been previously started, by passing `batch_ids`.
 
     Performance note (servers and interactive applications only):
         If your code is meant to be executed as part of an interactive application or
@@ -318,83 +321,34 @@ class RemoteQPUExtractorV2(BaseRemoteExtractorV2[GraphType]):
         may ignore this performance note.
 
     Args:
-        path: Path to store the result of the run, for future uses.
-            To reload the result of a previous run, use `LoadExtractor`.
-        project_id: The ID of the project on the Pasqal Cloud API.
-        username: Your username on the Pasqal Cloud API.
-        password: Your password on the Pasqal Cloud API. If you leave
-            this to None, you will need to enter your password manually.
-        device_name: The name of the device to use. As of this writing,
-            the default value of "FRESNEL" represents the latest QPU
-            available through the Pasqal Cloud API.
-        job_id: Use this to resume a workflow e.g. after turning off
-            your computer while the QPU was executing your sequences.
+        backend_class: The Pulser remote backend to execute the sequences on. It must be
+            compatible with `connection`.
+        backend_kwargs: Any additional arguments for `backend_class`, e.g. `config`.
+
+        See `BaseRemoteExtractorV2` for the other arguments.
     """
 
     def __init__(
         self,
         compiler: BaseGraphCompiler[GraphType],
         connection: RemoteConnection,
-        batch_ids: list[str] | None = None,
+        backend_class: Type[RemoteBackend] = QPUBackend,
+        device: Device | None = None,
         device_name: str = "FRESNEL",
+        batch_ids: list[str] | None = None,
         path: Path | None = None,
+        **backend_kwargs: Any,
     ):
         super().__init__(
             compiler=compiler,
             connection=connection,
-            batch_ids=batch_ids,
+            device=device,
             device_name=device_name,
+            batch_ids=batch_ids,
             path=path,
         )
+        self._backend_class = backend_class
+        self._backend_kwargs = backend_kwargs
 
     def run(self) -> RemoteExtracted:
-        return self._run(backend_class=QPUBackend)
-
-
-class RemoteEmuMPSExtractorV2(BaseRemoteExtractorV2[GraphType]):
-    """
-    An Extractor that uses a remote high-performance emulator (EmuMPS)
-    published on Pasqal Cloud, to run sequences compiled from graphs.
-
-    Performance note (servers and interactive applications only):
-        If your code is meant to be executed as part of an interactive application or
-        a server, you should consider calling `await extracted` before your first call
-        to any of the methods of `extracted`. Otherwise, you will block the main thread.
-
-        If you are running this as part of an experiment, a Jupyter notebook, etc. you
-        may ignore this performance note.
-
-    Args:
-        path: Path to store the result of the run, for future uses.
-            To reload the result of a previous run, use `LoadExtractor`.
-        project_id: The ID of the project on the Pasqal Cloud API.
-        username: Your username on the Pasqal Cloud API.
-        password: Your password on the Pasqal Cloud API. If you leave
-            this to None, you will need to enter your password manually.
-        device_name: The name of the device to use. As of this writing,
-            the default value of "FRESNEL" represents the latest QPU
-            available through the Pasqal Cloud API.
-        job_id: Use this to resume a workflow e.g. after turning off
-            your computer while the QPU was executing your sequences.
-    """
-
-    def __init__(
-        self,
-        compiler: BaseGraphCompiler[GraphType],
-        connection: RemoteConnection,
-        batch_ids: list[str] | None = None,
-        device_name: str = "FRESNEL",
-        path: Path | None = None,
-    ):
-        super().__init__(
-            compiler=compiler,
-            connection=connection,
-            batch_ids=batch_ids,
-            device_name=device_name,
-            path=path,
-        )
-
-    def run(self) -> RemoteExtracted:
-        return self._run(
-            backend_class=RemoteMPSBackend,
-        )
+        return self._run(backend_class=self._backend_class, **self._backend_kwargs)
