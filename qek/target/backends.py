@@ -118,7 +118,9 @@ class BaseRemoteBackend(BaseBackend):
             self._connection = connection
         else:
             assert project_id is not None and username is not None
-            self._connection = PasqalCloud(username=username, project_id=project_id, password=password)
+            self._connection = PasqalCloud(
+                username=username, project_id=project_id, password=password
+            )
         self.device_name = device_name
         self._max_runs = 500
         self._sequence = None
@@ -148,7 +150,7 @@ class BaseRemoteBackend(BaseBackend):
         self,
         register: targets.Register,
         pulse: targets.Pulse,
-        backend_class: Type[RemoteBackend] | None,
+        backend_class: Type[RemoteBackend],
         sleep_sec: int = 2,
     ) -> Counter[str]:
         """
@@ -184,7 +186,7 @@ class BaseRemoteBackend(BaseBackend):
                 # Continue waiting.
                 continue
             # We submit exactly one job, so exactly one `Results`.
-            return remote_results.results[0].final_bitstrings
+            return cast(Counter[str], remote_results.results[0].final_bitstrings)
 
 
 class RemoteQPUBackend(BaseRemoteBackend):
@@ -196,16 +198,19 @@ class RemoteQPUBackend(BaseRemoteBackend):
         may be very long. You may use this Extractor to resume your workflow
         with a computation that has been previously started.
     """
+
     async def run(self, register: targets.Register, pulse: targets.Pulse) -> Counter[str]:
         return await self._run(register, pulse, backend_class=QPUBackend)
+
 
 class RemoteEmuMPSBackend(BaseRemoteBackend):
     """
     A backend that uses a remote high-performance emulator (EmuMPS)
     published on Pasqal Cloud or third party connection.
     """
+
     async def run(self, register: targets.Register, pulse: targets.Pulse) -> Counter[str]:
-        return self._run(register, pulse, backend_class=RemoteMPSBackend)
+        return await self._run(register, pulse, backend_class=RemoteMPSBackend)
 
 
 if os.name == "posix":
