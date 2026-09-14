@@ -1,14 +1,17 @@
 from typing import cast
+from unittest.mock import patch
 
 import os
 import pulser as pl
 import pytest
 import torch_geometric.data as pyg_data
 import torch_geometric.datasets as pyg_dataset
+from pulser_pasqal import PasqalCloud
 from qek.target import targets
-from qek.target.backends import CompilationError, QutipBackend, BaseBackend
+from qek.target.backends import CompilationError, QutipBackend, BaseBackend, RemoteQPUBackend
 import qek.data.graphs as qek_graphs
 from qek.shared.retrier import PygRetrier
+from tests.mock_cloud_sdk import MockSDK
 
 if os.name == "posix":
     # As of this writing, emu-mps only works under Unix.
@@ -62,3 +65,18 @@ async def test_async_emulators() -> None:
                 assert v >= 0
                 for c in k:
                     assert c in {"0", "1"}
+
+
+@pytest.mark.asyncio
+async def test_async_remote_backend_device() -> None:
+    """
+    A remote backend fed any Pulser `RemoteConnection` (as the tutorials do) must be
+    able to fetch its device specs.
+    """
+    with patch("pasqal_cloud.SDK", return_value=MockSDK()):
+        connection = PasqalCloud(username="placeholder", project_id="placeholder")
+
+    backend = RemoteQPUBackend(connection=connection)
+    device = await backend.device()
+    assert isinstance(device, pl.devices.Device)
+    assert device.name == "Fresnel"

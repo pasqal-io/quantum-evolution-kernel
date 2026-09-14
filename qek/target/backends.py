@@ -15,7 +15,6 @@ from pulser_pasqal import PasqalCloud
 from pulser_pasqal.backends import EmuMPSBackend as RemoteMPSBackend
 from pulser_simulation import QutipEmulator
 
-from qek.data.extractors import deserialize_device
 from qek.shared.error import CompilationError
 from qek.shared._utils import make_sequence
 from qek.target import targets
@@ -134,8 +133,9 @@ class BaseRemoteBackend(BaseBackend):
 
         # Fetch the latest list of QPUs
         # Implementation note: Currently sync, hopefully async in the future.
+        # A Pulser `RemoteConnection` already hands us deserialized `Device`s.
         specs = self._connection.fetch_available_devices()
-        self._device = cast(Device, deserialize_device(specs[self.device_name]))
+        self._device = cast(Device, specs[self.device_name])
 
         # As of this writing, the API doesn't support runs longer than 500 jobs.
         # If we want to add more runs, we'll need to split them across several jobs.
@@ -172,7 +172,7 @@ class BaseRemoteBackend(BaseBackend):
             raise CompilationError(f"This register/pulse cannot be executed on the device: {e}")
 
         remote_results = backend_class(sequence, self._connection).run(
-            jobs_params=[{"runs": self._max_runs}],
+            job_params=[{"runs": self._max_runs}],
             wait=False,
         )
 
@@ -183,7 +183,8 @@ class BaseRemoteBackend(BaseBackend):
             if remote_results.get_batch_status() in {BatchStatus.PENDING, BatchStatus.RUNNING}:
                 # Continue waiting.
                 continue
-            return remote_results.results.final_bitstrings
+            # We submit exactly one job, so exactly one `Results`.
+            return remote_results.results[0].final_bitstrings
 
 
 class RemoteQPUBackend(BaseRemoteBackend):
