@@ -6,7 +6,7 @@ import pulser as pl
 import pytest
 import torch_geometric.data as pyg_data
 import torch_geometric.datasets as pyg_dataset
-from pulser_pasqal import PasqalCloud
+from pasqal_cloud import PasqalCloudConnection
 from qek.target import targets
 from qek.target.backends import CompilationError, QutipBackend, BaseBackend, RemoteQPUBackend
 import qek.data.graphs as qek_graphs
@@ -73,8 +73,8 @@ async def test_async_remote_backend_device() -> None:
     A remote backend fed any Pulser `RemoteConnection` (as the tutorials do) must be
     able to fetch its device specs.
     """
-    with patch("pasqal_cloud.SDK", return_value=MockSDK()):
-        connection = PasqalCloud(username="placeholder", project_id="placeholder")
+    with patch("pasqal_cloud.pasqal_cloud_connection.PasqalCloudClient", return_value=MockSDK()):
+        connection = PasqalCloudConnection(username="placeholder", project_id="placeholder")
 
     backend = RemoteQPUBackend(connection=connection)
     device = await backend.device()

@@ -3,8 +3,8 @@ High-Level API to compile raw data (graphs) and process it on a quantum device, 
 a remote emulator or a physical QPU.
 
 Unlike `qek.data.extractors`, this module only speaks Pulser: any `pulser.backend.remote.RemoteConnection`
-(e.g. `pulser_pasqal.PasqalCloud`) and any `RemoteBackend` will do, so nothing here depends on the
-pasqal-cloud SDK.
+(e.g. `pasqal_cloud.PasqalCloudConnection`) and any `RemoteBackend` will do, so nothing here
+depends on the pasqal-cloud SDK's own job API.
 """
 
 import abc
@@ -205,7 +205,8 @@ class BaseRemoteExtractorV2(BaseExtractor[GraphType], Generic[GraphType]):
 
     Args:
         compiler: A graph compiler, in charge of converting graphs to Pulser Sequences.
-        connection: An open connection to the remote API, e.g. `pulser_pasqal.PasqalCloud`.
+        connection: An open connection to the remote API, e.g.
+            `pasqal_cloud.PasqalCloudConnection`.
         device: The device to compile for. If unspecified, fetch `device_name` from
             `connection`.
         device_name: The name of the device to fetch from `connection`. As of this writing,
@@ -305,7 +306,7 @@ class RemoteExtractorV2(BaseRemoteExtractorV2[GraphType]):
     By default, it runs on a QPU (`QPUBackend`). To run on a remote emulator instead, pass
     the corresponding backend class, e.g.:
 
-        RemoteExtractorV2(compiler, connection, backend_class=pulser_pasqal.EmuMPSBackend)
+        RemoteExtractorV2(compiler, connection, backend_class=pasqal_cloud.RemoteMPSBackend)
 
     Performance note:
         as of this writing, the waiting lines for a QPU

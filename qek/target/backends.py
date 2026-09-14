@@ -11,8 +11,7 @@ from pulser import Sequence
 from pulser.devices import Device
 from pulser.backend import QPUBackend
 from pulser.backend.remote import RemoteConnection, BatchStatus, RemoteBackend
-from pulser_pasqal import PasqalCloud
-from pulser_pasqal.backends import EmuMPSBackend as RemoteMPSBackend
+from pasqal_cloud import PasqalCloudConnection, RemoteMPSBackend
 from pulser_simulation import QutipEmulator
 
 from qek.shared.error import CompilationError
@@ -118,7 +117,7 @@ class BaseRemoteBackend(BaseBackend):
             self._connection = connection
         else:
             assert project_id is not None and username is not None
-            self._connection = PasqalCloud(
+            self._connection = PasqalCloudConnection(
                 username=username, project_id=project_id, password=password
             )
         self.device_name = device_name
