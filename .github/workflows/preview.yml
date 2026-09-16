@@ -1,3 +1,4 @@
+# .github/workflows/preview.yml
 name: Deploy PR previews
 
 on:
@@ -8,19 +9,27 @@ on:
       - synchronize
       - closed
 
+# `pull_request` (never `pull_request_target`) is deliberate: the build below
+# executes code from the pull request, so it must not run in a context that has
+# access to repository secrets or a writable token.
 permissions: {}
 
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
+  # Deploys push to gh-pages; cancelling one midway can leave it inconsistent.
   cancel-in-progress: false
 
 jobs:
+  # UNTRUSTED. Builds the pull request's own code: `hatch run docs:build` runs
+  # packaging/docs tooling, and mkdocs.yml enables `markdown_exec`, which
+  # executes Python from the docs at build time. This job therefore holds no
+  # permissions and no credentials -- it only produces an artifact.
   build:
     name: Build docs
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: read # checkout only; deliberately nothing else
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,17 +58,22 @@ jobs:
           path: ./site/
           retention-days: 1
 
+  # TRUSTED. Holds the write token but never runs code from the pull request:
+  # it checks out the base commit and only unpacks the artifact built above.
   deploy:
     name: Deploy preview
     needs: [build]
+    # Forks get a read-only token no matter what `permissions` says, so a
+    # deploy from one cannot succeed. Skip it rather than fail the PR; the
+    # build job above still validates that a fork's docs compile.
     if: |
       always() &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       (github.event.action == 'closed' || needs.build.result == 'success')
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: write # push the preview to the gh-pages branch
+      pull-requests: write # leave/update the sticky preview comment
     steps:
       - name: Checkout the base commit, never the PR head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -83,14 +97,16 @@ jobs:
   portal-preview:
     name: Deploy doc-portal preview
     needs: [deploy]
+    # Same-repo only (secrets + write token). Runs after deploy so mkdocs and
+    # portal never push to gh-pages in parallel — including on PR close.
     if: |
       always() &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       (github.event.action == 'closed' || needs.deploy.result == 'success')
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: write # publish under portal-preview/pr-<n>/ on gh-pages
+      pull-requests: write # sticky comment
     env:
       PORTAL_PREVIEW_PATH: portal-preview/pr-${{ github.event.pull_request.number }}
       DOC_PORTAL_IMAGE: europe-west9-docker.pkg.dev/pasqal-artifact/frontend/doc-portal:source-runtime
