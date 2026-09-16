@@ -38,6 +38,8 @@ jobs:
         run: pip install hatch
 
       - name: Build documentation
+        env:
+          PYTHONWARNINGS: ignore
         run: hatch -v run docs:build
 
       - name: Upload built site
