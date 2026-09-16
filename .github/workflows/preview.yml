@@ -139,7 +139,7 @@ jobs:
             --env ASTRO_BASE="/quantum-evolution-kernel/${PORTAL_PREVIEW_PATH}/" \
             --entrypoint sh \
             "$DOC_PORTAL_IMAGE" \
-            -c 'sh /app/docker/doc-portal-rebuild-source.sh qek && cp -r /app/packages/doc-portal/dist/. /out/'
+            -c 'cd /app && pnpm --filter @pasqal/doc-portal run build:selected && cp -r /app/packages/doc-portal/dist/. /out/'
 
       - name: Deploy portal preview
         uses: rossjrw/pr-preview-action@ffa7509e91a3ec8dfc2e5536c4d5c1acdf7a6de9 # v1.8.1
