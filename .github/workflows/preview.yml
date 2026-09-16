@@ -134,6 +134,7 @@ jobs:
         run: |
           mkdir -p portal-dist
           docker run --rm \
+            --user 0:0 \
             --volume "$PWD/portal-dist:/out" \
             --env BUILD_CONFIG='{"qek":"https://pasqal-io.github.io/quantum-evolution-kernel/pr-preview/pr-${{ github.event.pull_request.number }}/"}' \
             --env ASTRO_BASE="/quantum-evolution-kernel/${PORTAL_PREVIEW_PATH}/" \
